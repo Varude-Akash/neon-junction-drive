@@ -1,4 +1,5 @@
 {
   "cleanUrls": true,
-  "outputDirectory": "dist"
+  "buildCommand": "echo static site ready",
+  "outputDirectory": "."
 }
