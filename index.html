@@ -11,18 +11,18 @@
       <section class="hud" aria-label="Game status">
         <div>
           <span class="label">district</span>
-          <strong id="district">Downtown Loop</strong>
+          <strong id="district">Vice Canal</strong>
         </div>
         <div>
           <span class="label">speed</span>
           <strong><span id="speed">0</span> mph</strong>
         </div>
         <div>
-          <span class="label">checkpoints</span>
-          <strong><span id="score">0</span>/<span id="target">8</span></strong>
+          <span class="label">route</span>
+          <strong><span id="score">0</span>/<span id="target">12</span></strong>
         </div>
         <div>
-          <span class="label">best chain</span>
+          <span class="label">style</span>
           <strong id="chain">0</strong>
         </div>
       </section>
@@ -30,12 +30,16 @@
       <canvas id="game" width="1280" height="720" aria-label="Top-down retro city driving game"></canvas>
 
       <section class="controls" aria-label="Touch controls">
-        <button class="control control-up" data-key="w" aria-label="Accelerate">^</button>
-        <button class="control control-left" data-key="a" aria-label="Steer left">&lt;</button>
-        <button class="control control-down" data-key="s" aria-label="Reverse">v</button>
-        <button class="control control-right" data-key="d" aria-label="Steer right">&gt;</button>
-        <button class="control control-brake" data-key=" " aria-label="Handbrake">!</button>
-        <button class="control control-reset" data-reset aria-label="Reset">R</button>
+        <div class="pad">
+          <button class="control control-up" data-key="w" aria-label="Accelerate">^</button>
+          <button class="control control-left" data-key="a" aria-label="Steer left">&lt;</button>
+          <button class="control control-down" data-key="s" aria-label="Reverse">v</button>
+          <button class="control control-right" data-key="d" aria-label="Steer right">&gt;</button>
+        </div>
+        <div class="actions">
+          <button class="control control-brake" data-key=" " aria-label="Handbrake">HB</button>
+          <button class="control control-reset" data-reset aria-label="Reset">R</button>
+        </div>
       </section>
     </main>
 
