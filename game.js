@@ -3,7 +3,7 @@ import * as THREE from "three";
 const canvas = document.getElementById("game");
 const speedEl = document.getElementById("speed");
 const routeEl = document.getElementById("route");
-const styleEl = document.getElementById("style");
+const damageEl = document.getElementById("damage");
 
 const scene = new THREE.Scene();
 
@@ -13,14 +13,20 @@ function makeSkyTexture() {
   sky.height = 256;
   const ctx = sky.getContext("2d");
   const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-  gradient.addColorStop(0, "#07111d");
-  gradient.addColorStop(0.5, "#314d66");
-  gradient.addColorStop(1, "#c9e0ec");
+  gradient.addColorStop(0, "#5db7ff");
+  gradient.addColorStop(0.46, "#aee2ff");
+  gradient.addColorStop(1, "#f9fcff");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 32, 256);
-  for (let i = 0; i < 42; i += 1) {
-    ctx.fillStyle = i % 3 ? "#d8ff3e66" : "#8be8ff88";
-    ctx.fillRect(rand(i) * 32, rand(i + 5) * 98, 1, 1);
+  for (let i = 0; i < 18; i += 1) {
+    const x = rand(i) * 32;
+    const y = 22 + rand(i + 3) * 95;
+    const r = 2 + rand(i + 8) * 5;
+    const cloud = ctx.createRadialGradient(x, y, 0, x, y, r);
+    cloud.addColorStop(0, "rgba(255,255,255,0.82)");
+    cloud.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = cloud;
+    ctx.fillRect(Math.max(0, x - r), Math.max(0, y - r), r * 2, r * 2);
   }
   const texture = new THREE.CanvasTexture(sky);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -28,7 +34,7 @@ function makeSkyTexture() {
 }
 
 scene.background = makeSkyTexture();
-scene.fog = new THREE.Fog(0x7f9fb5, 45, 820);
+scene.fog = new THREE.Fog(0xc8eaff, 120, 1050);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.15));
@@ -69,6 +75,8 @@ const car = {
   steer: 0,
   turnVelocity: 0,
   visualTilt: 0,
+  damage: 0,
+  hitCooldown: 0,
 };
 
 let inCar = true;
@@ -77,6 +85,7 @@ let person = null;
 let interactCooldown = 0;
 let contactShadow = null;
 let underGlow = null;
+let damageSmoke = null;
 
 const checkpoints = [
   [-360, -520], [-160, -320], [40, -120], [240, -320], [470, -120],
@@ -85,11 +94,11 @@ const checkpoints = [
 ].map(([x, z]) => new THREE.Vector3(x, 0, z));
 
 const mat = {
-  ground: new THREE.MeshStandardMaterial({ color: 0x183d2c, roughness: 1 }),
-  sand: new THREE.MeshStandardMaterial({ color: 0x4a4f49, roughness: 1 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x164c63, roughness: 0.24, metalness: 0.12, emissive: 0x082938, emissiveIntensity: 0.5 }),
-  asphalt: new THREE.MeshStandardMaterial({ color: 0x20252c, roughness: 0.88 }),
-  curb: new THREE.MeshStandardMaterial({ color: 0x17272b, roughness: 0.42, emissive: 0x0d5a69, emissiveIntensity: 0.42 }),
+  ground: new THREE.MeshStandardMaterial({ color: 0x3f8c55, roughness: 0.94 }),
+  sand: new THREE.MeshStandardMaterial({ color: 0xd6bd83, roughness: 1 }),
+  water: new THREE.MeshStandardMaterial({ color: 0x42b7cd, roughness: 0.18, metalness: 0.06, emissive: 0x0b6f8b, emissiveIntensity: 0.25 }),
+  asphalt: new THREE.MeshStandardMaterial({ color: 0x25282d, roughness: 0.88 }),
+  curb: new THREE.MeshStandardMaterial({ color: 0x52616a, roughness: 0.54, emissive: 0x14333b, emissiveIntensity: 0.12 }),
   lane: new THREE.MeshStandardMaterial({ color: 0xf8f2c6, roughness: 0.55, emissive: 0xd8ff3e, emissiveIntensity: 0.7 }),
   rail: new THREE.MeshStandardMaterial({ color: 0x132126, roughness: 0.35, emissive: 0x24d6ff, emissiveIntensity: 1.35 }),
   glass: new THREE.MeshStandardMaterial({ color: 0x142535, roughness: 0.18, metalness: 0.3, emissive: 0x061522, emissiveIntensity: 0.35 }),
@@ -103,6 +112,7 @@ const mat = {
   chrome: new THREE.MeshStandardMaterial({ color: 0xc8c8bc, roughness: 0.32, metalness: 0.5 }),
   headlight: new THREE.MeshBasicMaterial({ color: 0xfff2b0 }),
   brake: new THREE.MeshBasicMaterial({ color: 0xb51622 }),
+  smoke: new THREE.MeshBasicMaterial({ color: 0x404348, transparent: true, opacity: 0.0, depthWrite: false }),
 };
 
 function rand(seed) {
@@ -158,9 +168,9 @@ function pane(w, h, material, x, y, z, ry = 0) {
 }
 
 function addLights() {
-  scene.add(new THREE.HemisphereLight(0xeaf7ff, 0x3b2612, 1.85));
-  const sun = new THREE.DirectionalLight(0xffca93, 2.8);
-  sun.position.set(-240, 520, 180);
+  scene.add(new THREE.HemisphereLight(0xf2fbff, 0x6c8656, 2.25));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.65);
+  sun.position.set(-220, 560, 250);
   scene.add(sun);
 }
 
@@ -356,6 +366,7 @@ function makePlayerCar() {
 
 function makeHuman(shirtColor, pantsColor, skinColor, hairColor) {
   const group = new THREE.Group();
+  const limbs = { arms: [], legs: [], shoes: [] };
   const shirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.72 });
   const pants = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.82 });
   const skin = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.78 });
@@ -373,14 +384,17 @@ function makeHuman(shirtColor, pantsColor, skinColor, hairColor) {
     arm.rotation.z = side * 0.16;
     arm.castShadow = true;
     group.add(arm);
+    limbs.arms.push({ mesh: arm, side });
 
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.86, 4, 8), pants);
     leg.position.set(side * 0.22, 0.78, 0);
     leg.castShadow = true;
     group.add(leg);
+    limbs.legs.push({ mesh: leg, side });
 
     const shoe = box(0.34, 0.14, 0.58, mat.black, side * 0.22, 0.13, 0.12, true);
     group.add(shoe);
+    limbs.shoes.push({ mesh: shoe, side });
   }
 
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.46, 16, 12), skin);
@@ -390,7 +404,36 @@ function makeHuman(shirtColor, pantsColor, skinColor, hairColor) {
   cap.position.set(0, 3.2, 0);
   cap.castShadow = true;
   group.add(head, cap);
+  group.userData.limbs = limbs;
   return group;
+}
+
+function animateHuman(group, phase, speed = 1, fallen = false) {
+  const limbs = group.userData.limbs;
+  if (!limbs) return;
+  if (fallen) {
+    for (const item of limbs.arms) {
+      item.mesh.rotation.x = item.side * 0.85;
+      item.mesh.rotation.z = item.side * 1.2;
+    }
+    for (const item of limbs.legs) {
+      item.mesh.rotation.x = -0.55 + item.side * 0.12;
+      item.mesh.rotation.z = item.side * 0.36;
+    }
+    return;
+  }
+  const stride = Math.sin(phase) * speed;
+  for (const item of limbs.arms) {
+    item.mesh.rotation.x = -stride * item.side * 0.9;
+    item.mesh.rotation.z = item.side * (0.16 + Math.abs(stride) * 0.18);
+  }
+  for (const item of limbs.legs) {
+    item.mesh.rotation.x = stride * item.side * 0.95;
+    item.mesh.rotation.z = item.side * 0.04;
+  }
+  for (const item of limbs.shoes) {
+    item.mesh.position.z = 0.12 + Math.max(0, stride * item.side) * 0.15;
+  }
 }
 
 function makePerson() {
@@ -457,12 +500,18 @@ function makePedestrian(x, z, seed) {
   );
   group.position.set(x, 0, z);
   scene.add(group);
+  const angle = rand(seed + 20) * Math.PI * 2;
+  const radius = 18 + rand(seed + 21) * 58;
   pedestrians.push({
     group,
     base: new THREE.Vector3(x, 0, z),
-    axis: seed % 2 === 0 ? "x" : "z",
-    span: 18 + rand(seed) * 38,
-    speed: 0.45 + rand(seed + 9) * 0.55,
+    target: new THREE.Vector3(x + Math.sin(angle) * radius, 0, z + Math.cos(angle) * radius),
+    speed: 3.2 + rand(seed + 9) * 2.7,
+    panic: 0,
+    injured: 0,
+    fallen: 0,
+    hitVelocity: new THREE.Vector3(),
+    phase: rand(seed + 12) * Math.PI * 2,
     seed,
   });
 }
@@ -497,6 +546,14 @@ function addVehicleEffects() {
 
   underGlow = new THREE.PointLight(0x24d6ff, 1.8, 28, 2);
   scene.add(underGlow);
+
+  damageSmoke = new THREE.Group();
+  for (let i = 0; i < 7; i += 1) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.55 + i * 0.08, 8, 6), mat.smoke.clone());
+    puff.position.set((rand(i) - 0.5) * 1.2, 0.8 + rand(i + 4) * 1.3, 3.1 + rand(i + 8) * 1.8);
+    damageSmoke.add(puff);
+  }
+  scene.add(damageSmoke);
 }
 
 const playerCar = makePlayerCar();
@@ -526,6 +583,29 @@ function hitsParkedCar(pos) {
   return parkedCars.some((parked) => parked.group !== activeVehicle && parked.group.position.distanceTo(pos) < 7.4);
 }
 
+function addCarDamage(amount, impactDir = null) {
+  car.damage = THREE.MathUtils.clamp(car.damage + amount, 0, 100);
+  car.hitCooldown = 0.24;
+  if (activeVehicle && impactDir) {
+    activeVehicle.rotation.z += THREE.MathUtils.clamp(impactDir.x * 0.08, -0.14, 0.14);
+    activeVehicle.rotation.x += THREE.MathUtils.clamp(impactDir.z * 0.04, -0.08, 0.08);
+  }
+}
+
+function hitPedestrian(ped, force) {
+  if (ped.injured > 0.2) return;
+  const push = ped.group.position.clone().sub(car.position);
+  if (push.lengthSq() < 0.01) push.set(Math.sin(car.heading), 0, Math.cos(car.heading));
+  push.normalize();
+  ped.injured = 1;
+  ped.fallen = 2.8 + THREE.MathUtils.clamp(force / 24, 0, 2.2);
+  ped.panic = 0;
+  ped.hitVelocity.copy(push).multiplyScalar(10 + force * 0.36);
+  ped.group.rotation.y = Math.atan2(push.x, push.z);
+  car.speed *= 0.5;
+  addCarDamage(4 + force * 0.18, push);
+}
+
 function reset() {
   car.position.set(-560, 0.45, -520);
   car.heading = Math.PI / 2;
@@ -539,9 +619,13 @@ function reset() {
   car.steer = 0;
   car.turnVelocity = 0;
   car.visualTilt = 0;
+  car.damage = 0;
+  car.hitCooldown = 0;
   inCar = true;
   activeVehicle = playerCar;
   playerCar.visible = true;
+  playerCar.rotation.x = 0;
+  playerCar.rotation.z = 0;
   person.visible = false;
   person.position.copy(car.position);
   person.rotation.y = car.heading;
@@ -602,6 +686,9 @@ function toggleEnterExit() {
   car.heading = target.group.rotation.y;
   car.speed = 0;
   car.visualTilt = 0;
+  car.damage = target.own ? car.damage : 0;
+  car.hitCooldown = 0;
+  activeVehicle.rotation.x = 0;
   target.group.rotation.z = 0;
   person.visible = false;
 }
@@ -614,6 +701,7 @@ function updatePerson(dt) {
   const forward = new THREE.Vector3(Math.sin(person.rotation.y), 0, Math.cos(person.rotation.y));
   const old = person.position.clone();
   person.position.addScaledVector(forward, forwardInput * walk * dt);
+  animateHuman(person, performance.now() * 0.01, Math.abs(forwardInput) * (keys.has("shift") ? 1.4 : 0.85), false);
   car.position.copy(person.position);
   car.heading = person.rotation.y;
   if (hitsBuilding(person.position)) person.position.copy(old);
@@ -621,6 +709,7 @@ function updatePerson(dt) {
 
 function updatePlayer(dt) {
   interactCooldown = Math.max(0, interactCooldown - dt);
+  car.hitCooldown = Math.max(0, car.hitCooldown - dt);
   if (keys.has("e")) toggleEnterExit();
   if (!inCar) {
     document.body.classList.remove("boosting");
@@ -636,6 +725,8 @@ function updatePlayer(dt) {
   const boosting = (keys.has("shift") || keys.has("shiftleft") || keys.has("shiftright")) && car.boost > 0 && car.speed > 12;
   const steerTarget = (left ? 1 : 0) - (right ? 1 : 0);
   const roadGrip = isOnRoad(car.position) ? 1 : 0.46;
+  const damageGrip = THREE.MathUtils.lerp(1, 0.56, car.damage / 100);
+  const maxForward = (boosting ? 96 : 72) * THREE.MathUtils.lerp(1, 0.58, car.damage / 100);
   const steerEase = 1 - Math.pow(0.0009, dt);
 
   car.steer = THREE.MathUtils.lerp(car.steer, steerTarget, steerEase);
@@ -645,10 +736,11 @@ function updatePlayer(dt) {
   if (brake) car.speed -= car.speed > 8 ? 74 * dt : 46 * dt;
   car.speed *= Math.pow(handbrake ? 0.965 : 0.992, dt * 60);
   car.speed *= Math.pow(roadGrip, dt * 5);
-  car.speed = THREE.MathUtils.clamp(car.speed, -22, boosting ? 96 : 72);
+  if (car.damage > 65 && Math.sin(performance.now() * 0.018) > 0.78) car.speed *= 0.985;
+  car.speed = THREE.MathUtils.clamp(car.speed, -22, maxForward);
   car.boost = THREE.MathUtils.clamp(car.boost + (boosting ? -38 : 10) * dt, 0, 100);
 
-  const steerPower = THREE.MathUtils.clamp(Math.abs(car.speed) / 38, 0.05, 1.22);
+  const steerPower = THREE.MathUtils.clamp(Math.abs(car.speed) / 38, 0.05, 1.22) * damageGrip;
   const targetTurn = car.steer * steerPower * (handbrake ? 2.45 : 1.45) * (car.speed < 0 ? -1 : 1);
   car.turnVelocity = THREE.MathUtils.lerp(car.turnVelocity, targetTurn, 1 - Math.pow(0.0016, dt));
   car.heading += car.turnVelocity * dt;
@@ -678,8 +770,13 @@ function updatePlayer(dt) {
   }
 
   if (hitsBuilding(car.position) || hitsParkedCar(car.position)) {
+    const hitForce = Math.abs(car.speed);
+    const impactDir = car.position.clone().sub(old);
+    if (impactDir.lengthSq() < 0.001) impactDir.set(Math.sin(car.heading), 0, Math.cos(car.heading));
+    impactDir.normalize();
     car.position.copy(old);
-    car.speed *= -0.34;
+    car.speed *= -0.28;
+    if (hitForce > 10) addCarDamage(5 + hitForce * 0.26, impactDir);
   }
 
   for (const zone of driftZones) {
@@ -699,8 +796,10 @@ function updatePlayer(dt) {
 
   activeVehicle.position.copy(car.position);
   activeVehicle.rotation.y = car.heading;
-  car.visualTilt = THREE.MathUtils.lerp(car.visualTilt, -car.steer * THREE.MathUtils.clamp(Math.abs(car.speed) / 80, 0, 1) * 0.12, 1 - Math.pow(0.002, dt));
+  const impactRock = car.hitCooldown > 0 ? Math.sin(performance.now() * 0.07) * car.hitCooldown * 0.18 : 0;
+  car.visualTilt = THREE.MathUtils.lerp(car.visualTilt, -car.steer * THREE.MathUtils.clamp(Math.abs(car.speed) / 80, 0, 1) * 0.12 + impactRock, 1 - Math.pow(0.002, dt));
   activeVehicle.rotation.z = car.visualTilt;
+  activeVehicle.rotation.x = THREE.MathUtils.lerp(activeVehicle.rotation.x, 0, 1 - Math.pow(0.006, dt));
   document.body.classList.toggle("boosting", boosting);
 }
 
@@ -716,6 +815,7 @@ function updateTraffic(dt) {
     if (d < 7.5) {
       const away = car.position.clone().sub(npc.group.position).normalize();
       car.position.addScaledVector(away, 4.2);
+      addCarDamage(7 + Math.abs(car.speed) * 0.18, away);
       car.speed *= -0.42;
       car.bestStyle = Math.max(0, car.bestStyle - 25);
     } else if (d < 15 && Math.abs(car.speed) > 45) {
@@ -726,22 +826,62 @@ function updateTraffic(dt) {
 
 function updatePedestrians(dt) {
   for (const ped of pedestrians) {
-    const wave = Math.sin(performance.now() * 0.001 * ped.speed + ped.seed) * ped.span;
-    if (ped.axis === "x") {
-      ped.group.position.x = ped.base.x + wave;
-      ped.group.rotation.y = wave > 0 ? Math.PI / 2 : -Math.PI / 2;
-    } else {
-      ped.group.position.z = ped.base.z + wave;
-      ped.group.rotation.y = wave > 0 ? 0 : Math.PI;
-    }
-    ped.group.position.y = Math.abs(Math.sin(performance.now() * 0.004 * ped.speed + ped.seed)) * 0.18;
+    const now = performance.now() * 0.001;
+    const toCar = ped.group.position.clone().sub(car.position);
+    const carDistance = toCar.length();
 
-    const d = ped.group.position.distanceTo(car.position);
-    if (inCar && d < 6 && Math.abs(car.speed) > 12) {
-      car.speed *= 0.72;
-      car.bestStyle = Math.max(0, car.bestStyle - 35);
-      const push = ped.group.position.clone().sub(car.position).normalize();
-      ped.group.position.addScaledVector(push, 5);
+    if (ped.fallen > 0) {
+      ped.fallen -= dt;
+      ped.group.position.addScaledVector(ped.hitVelocity, dt);
+      ped.hitVelocity.multiplyScalar(Math.pow(0.08, dt));
+      ped.group.position.y = 0.18;
+      ped.group.rotation.x = THREE.MathUtils.lerp(ped.group.rotation.x, Math.PI / 2, 1 - Math.pow(0.0003, dt));
+      ped.group.rotation.z = THREE.MathUtils.lerp(ped.group.rotation.z, 0.34, 1 - Math.pow(0.002, dt));
+      animateHuman(ped.group, now * 8 + ped.seed, 0, true);
+      continue;
+    }
+
+    if (ped.injured > 0) {
+      ped.injured = Math.max(0, ped.injured - dt * 0.12);
+      ped.group.rotation.x = THREE.MathUtils.lerp(ped.group.rotation.x, 0, 1 - Math.pow(0.002, dt));
+      ped.group.rotation.z = THREE.MathUtils.lerp(ped.group.rotation.z, 0, 1 - Math.pow(0.002, dt));
+    }
+
+    if (inCar && carDistance < 46 && Math.abs(car.speed) > 18 && ped.injured <= 0) {
+      ped.panic = Math.max(ped.panic, 1.6);
+      const flee = toCar.lengthSq() > 0.01 ? toCar.normalize() : new THREE.Vector3(Math.sin(ped.seed), 0, Math.cos(ped.seed));
+      ped.target.copy(ped.group.position).addScaledVector(flee, 48);
+    }
+
+    if (inCar && carDistance < 5.2 && Math.abs(car.speed) > 10) {
+      hitPedestrian(ped, Math.abs(car.speed));
+      continue;
+    }
+
+    ped.panic = Math.max(0, ped.panic - dt);
+    const toTarget = ped.target.clone().sub(ped.group.position);
+    const dist = toTarget.length();
+    if (dist < 4) {
+      const angle = rand(ped.seed + Math.floor(now * 0.21) + Math.floor(ped.base.x)) * Math.PI * 2;
+      const radius = 14 + rand(ped.seed + Math.floor(now * 0.17) + 9) * 72;
+      ped.target.set(
+        THREE.MathUtils.clamp(ped.base.x + Math.sin(angle) * radius, -870, 870),
+        0,
+        THREE.MathUtils.clamp(ped.base.z + Math.cos(angle) * radius, -870, 870)
+      );
+    } else {
+      const dir = toTarget.normalize();
+      const moveSpeed = ped.speed * (ped.panic > 0 ? 2.6 : 1) * (ped.injured > 0 ? 0.42 : 1);
+      const old = ped.group.position.clone();
+      ped.group.position.addScaledVector(dir, moveSpeed * dt);
+      if (hitsBuilding(ped.group.position) || !isOnRoad(ped.group.position) && ped.panic > 0.5 && rand(ped.seed + Math.floor(now * 7)) < 0.025) {
+        ped.group.position.copy(old);
+        ped.target.copy(ped.base);
+      }
+      ped.group.rotation.y = Math.atan2(dir.x, dir.z);
+      ped.phase += dt * moveSpeed * 2.2;
+      ped.group.position.y = Math.abs(Math.sin(ped.phase)) * 0.08;
+      animateHuman(ped.group, ped.phase, ped.panic > 0 ? 1.35 : 0.85, false);
     }
   }
 }
@@ -797,6 +937,7 @@ function updateVehicleEffects(dt) {
   if (!contactShadow || !underGlow) return;
   contactShadow.visible = inCar;
   underGlow.visible = inCar;
+  if (damageSmoke) damageSmoke.visible = inCar && car.damage > 22;
   if (!inCar) return;
 
   contactShadow.position.set(car.position.x, 0.08, car.position.z);
@@ -806,6 +947,21 @@ function updateVehicleEffects(dt) {
 
   underGlow.position.set(car.position.x, 0.55, car.position.z);
   underGlow.intensity = 1.4 + THREE.MathUtils.clamp(Math.abs(car.speed) / 90, 0, 1) * 1.2 + (car.boost < 94 ? 0.6 : 0);
+
+  if (damageSmoke) {
+    const forward = new THREE.Vector3(Math.sin(car.heading), 0, Math.cos(car.heading));
+    damageSmoke.position.copy(car.position).addScaledVector(forward, 2.8);
+    damageSmoke.position.y += 1.2;
+    damageSmoke.rotation.y = car.heading;
+    const smokeAmount = THREE.MathUtils.clamp((car.damage - 18) / 82, 0, 1);
+    for (let i = 0; i < damageSmoke.children.length; i += 1) {
+      const puff = damageSmoke.children[i];
+      puff.material.opacity = smokeAmount * (0.12 + rand(i + Math.floor(performance.now() * 0.003)) * 0.22);
+      puff.scale.setScalar(0.8 + smokeAmount * 1.6 + Math.sin(performance.now() * 0.004 + i) * 0.16);
+      puff.position.y += dt * (0.8 + i * 0.06);
+      if (puff.position.y > 3.4) puff.position.y = 0.8 + rand(i) * 0.6;
+    }
+  }
 }
 
 function updateCamera(dt) {
@@ -848,7 +1004,7 @@ function updateCamera(dt) {
 function updateHud() {
   speedEl.textContent = inCar ? String(Math.round(Math.abs(car.speed) * 2.55)) : "on foot";
   routeEl.textContent = String(car.drop);
-  styleEl.textContent = String(car.bestStyle);
+  damageEl.textContent = `${Math.round(car.damage)}%`;
 }
 
 function resize() {
