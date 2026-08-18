@@ -99,6 +99,37 @@ function cyl(r1, r2, h, material, x, y, z, segments = 12) {
   return mesh;
 }
 
+function sedanHull(material, width = 5.8, length = 9.6) {
+  const half = length / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-half, 0.3);
+  shape.lineTo(-half + 0.8, 1.1);
+  shape.lineTo(-half + 2.3, 1.35);
+  shape.lineTo(-half + 3.6, 2.35);
+  shape.lineTo(half - 2.9, 2.35);
+  shape.lineTo(half - 1.75, 1.35);
+  shape.lineTo(half - 0.55, 1.15);
+  shape.lineTo(half, 0.45);
+  shape.lineTo(half - 0.15, 0.0);
+  shape.lineTo(-half + 0.2, 0.0);
+  shape.closePath();
+
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: true, bevelSize: 0.1, bevelThickness: 0.08, bevelSegments: 1 });
+  geometry.translate(0, 0, -width / 2);
+  geometry.rotateY(-Math.PI / 2);
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function pane(w, h, material, x, y, z, ry = 0) {
+  const mesh = box(w, h, 0.08, material, x, y, z, false);
+  mesh.rotation.y = ry;
+  return mesh;
+}
+
 function addLights() {
   scene.add(new THREE.HemisphereLight(0xeaf7ff, 0x3b2612, 1.85));
   const sun = new THREE.DirectionalLight(0xffca93, 2.8);
@@ -169,18 +200,19 @@ function addBuilding(x, z, w, d, h, seed) {
 }
 
 function addPalm(x, z, scale = 1) {
-  const trunkHeight = 8.5 * scale;
-  const trunk = cyl(0.55 * scale, 0.9 * scale, trunkHeight, new THREE.MeshStandardMaterial({ color: 0x765d3d, roughness: 0.9 }), x, trunkHeight / 2, z, 8);
+  const trunkHeight = 7.2 * scale;
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x715333, roughness: 0.88 });
+  const trunk = cyl(0.3 * scale, 0.46 * scale, trunkHeight, trunkMat, x, trunkHeight / 2, z, 9);
   trunk.rotation.z = (rand(x + z) - 0.5) * 0.12;
   const crown = new THREE.Group();
-  crown.position.set(x, trunkHeight + 0.8 * scale, z);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d7b42, roughness: 0.76 });
-  for (let i = 0; i < 8; i += 1) {
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.2 * scale, 8.2 * scale, 4), leafMat);
-    leaf.position.set(0, -0.25 * scale, 3.3 * scale);
-    leaf.rotation.x = Math.PI / 2.7;
-    leaf.rotation.y = i * Math.PI * 2 / 8;
-    leaf.rotation.z = (i % 2 ? 0.12 : -0.12);
+  crown.position.set(x, trunkHeight + 0.15 * scale, z);
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x276f38, roughness: 0.8, side: THREE.DoubleSide });
+  for (let i = 0; i < 9; i += 1) {
+    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(1.15 * scale, 6.4 * scale), leafMat);
+    leaf.position.set(0, -0.35 * scale, 2.45 * scale);
+    leaf.rotation.x = Math.PI / 2.45;
+    leaf.rotation.y = i * Math.PI * 2 / 9;
+    leaf.rotation.z = Math.sin(i) * 0.22;
     leaf.castShadow = true;
     crown.add(leaf);
   }
@@ -198,6 +230,22 @@ function addRamp(x, z, rot = 0) {
   jumpPads.push({ x, z, rot, radius: 18 });
 }
 
+function addStreetLight(x, z, rot = 0) {
+  const pole = cyl(0.16, 0.2, 8.2, mat.chrome, 0, 4.1, 0, 10);
+  const arm = box(0.18, 0.18, 4.6, mat.chrome, 0, 7.95, 1.95, true);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), mat.headlight);
+  bulb.position.set(0, 7.8, 4.2);
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  group.rotation.y = rot;
+  group.add(pole, arm, bulb);
+  scene.add(group);
+
+  const light = new THREE.PointLight(0xffe1a4, 0.75, 42, 1.5);
+  light.position.set(x + Math.sin(rot) * 4.2, 7.8, z + Math.cos(rot) * 4.2);
+  scene.add(light);
+}
+
 function buildWorld() {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD), mat.ground);
   ground.rotation.x = -Math.PI / 2;
@@ -210,6 +258,13 @@ function buildWorld() {
 
   for (const z of roadZs) addRoad(true, z);
   for (const x of roadXs) addRoad(false, x);
+
+  for (let i = 0; i < roadXs.length; i += 1) {
+    for (let z = -680; z <= 680; z += 220) addStreetLight(roadXs[i] + 26, z, Math.PI);
+  }
+  for (let i = 0; i < roadZs.length; i += 1) {
+    for (let x = -680; x <= 680; x += 260) addStreetLight(x, roadZs[i] - 26, Math.PI / 2);
+  }
 
   let seed = 1;
   for (let xi = 0; xi < roadXs.length - 1; xi += 1) {
@@ -245,27 +300,29 @@ function buildWorld() {
 
 function makeCarModel(bodyMaterial, accentMaterial = mat.trim) {
   const group = new THREE.Group();
-  group.add(box(5.3, 0.95, 8.9, bodyMaterial, 0, 1.02, 0));
-  group.add(box(4.7, 0.7, 3.2, bodyMaterial, 0, 1.72, 1.7));
-  group.add(box(4.35, 0.95, 3.4, mat.glass, 0, 2.18, -0.85));
-  group.add(box(3.4, 0.55, 2.2, mat.glass, 0, 2.05, 1.95));
-  group.add(box(0.48, 0.08, 7.8, accentMaterial, 0, 1.88, -0.15, false));
-  group.add(box(5.8, 0.42, 0.9, mat.black, 0, 0.56, -4.35));
-  group.add(box(5.6, 0.34, 0.72, mat.chrome, 0, 0.7, 4.35));
-  group.add(box(1.1, 0.26, 0.18, mat.headlight, -1.55, 1.15, 4.53, false));
-  group.add(box(1.1, 0.26, 0.18, mat.headlight, 1.55, 1.15, 4.53, false));
-  group.add(box(1.05, 0.25, 0.18, mat.brake, -1.7, 1.1, -4.52, false));
-  group.add(box(1.05, 0.25, 0.18, mat.brake, 1.7, 1.1, -4.52, false));
+  group.add(sedanHull(bodyMaterial));
+  group.add(pane(3.1, 0.72, mat.glass, -2.94, 1.82, -0.55, Math.PI / 2));
+  group.add(pane(3.1, 0.72, mat.glass, 2.94, 1.82, -0.55, -Math.PI / 2));
+  group.add(pane(3.0, 0.64, mat.glass, 0, 1.82, 1.88, 0));
+  group.add(pane(2.7, 0.58, mat.glass, 0, 1.58, -2.85, 0));
+  group.add(box(0.35, 0.12, 7.6, accentMaterial, -2.96, 1.15, -0.1, false));
+  group.add(box(0.35, 0.12, 7.6, accentMaterial, 2.96, 1.15, -0.1, false));
+  group.add(box(4.9, 0.28, 0.5, mat.black, 0, 0.46, -4.64));
+  group.add(box(4.7, 0.24, 0.42, mat.chrome, 0, 0.58, 4.72));
+  group.add(box(1.0, 0.24, 0.16, mat.headlight, -1.45, 0.92, 4.96, false));
+  group.add(box(1.0, 0.24, 0.16, mat.headlight, 1.45, 0.92, 4.96, false));
+  group.add(box(1.0, 0.25, 0.18, mat.brake, -1.62, 0.86, -4.86, false));
+  group.add(box(1.0, 0.25, 0.18, mat.brake, 1.62, 0.86, -4.86, false));
   for (const x of [-2.8, 2.8]) {
-    for (const z of [-3.15, 3.15]) {
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.62, 18), mat.tire);
+    for (const z of [-3.0, 3.05]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.58, 22), mat.tire);
       wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(x, 0.62, z);
+      wheel.position.set(x, 0.48, z);
       wheel.castShadow = true;
       group.add(wheel);
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.66, 14), mat.chrome);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.62, 18), mat.chrome);
       hub.rotation.z = Math.PI / 2;
-      hub.position.set(x, 0.62, z);
+      hub.position.set(x, 0.48, z);
       group.add(hub);
     }
   }
@@ -278,20 +335,47 @@ function makePlayerCar() {
   return group;
 }
 
-function makePerson() {
+function makeHuman(shirtColor, pantsColor, skinColor, hairColor) {
   const group = new THREE.Group();
-  const shirt = new THREE.MeshStandardMaterial({ color: 0x2c5fd7, roughness: 0.7 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x1b1b22, roughness: 0.8 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xb77955, roughness: 0.72 });
-  const body = box(1.15, 1.65, 0.62, shirt, 0, 2.0, 0, true);
-  const leftArm = box(0.28, 1.35, 0.26, skin, -0.82, 1.92, 0.02, true);
-  const rightArm = box(0.28, 1.35, 0.26, skin, 0.82, 1.92, 0.02, true);
-  const leftLeg = box(0.36, 1.35, 0.32, pants, -0.28, 0.72, 0, true);
-  const rightLeg = box(0.36, 1.35, 0.32, pants, 0.28, 0.72, 0, true);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12), skin);
-  head.position.set(0, 3.18, 0);
+  const shirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.72 });
+  const pants = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.82 });
+  const skin = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.78 });
+  const hair = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.88 });
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 0.9, 4, 10), shirt);
+  torso.position.set(0, 2.05, 0);
+  torso.scale.set(0.92, 1, 0.55);
+  torso.castShadow = true;
+  group.add(torso);
+
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.88, 4, 8), skin);
+    arm.position.set(side * 0.62, 1.86, 0);
+    arm.rotation.z = side * 0.16;
+    arm.castShadow = true;
+    group.add(arm);
+
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.86, 4, 8), pants);
+    leg.position.set(side * 0.22, 0.78, 0);
+    leg.castShadow = true;
+    group.add(leg);
+
+    const shoe = box(0.34, 0.14, 0.58, mat.black, side * 0.22, 0.13, 0.12, true);
+    group.add(shoe);
+  }
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.46, 16, 12), skin);
+  head.position.set(0, 3.08, 0);
   head.castShadow = true;
-  group.add(body, leftArm, rightArm, leftLeg, rightLeg, head);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.49, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), hair);
+  cap.position.set(0, 3.2, 0);
+  cap.castShadow = true;
+  group.add(head, cap);
+  return group;
+}
+
+function makePerson() {
+  const group = makeHuman(0x2c5fd7, 0x1b1b22, 0xb77955, 0x22160e);
   group.visible = false;
   scene.add(group);
   return group;
@@ -346,19 +430,12 @@ function addParkedCars() {
 }
 
 function makePedestrian(x, z, seed) {
-  const group = new THREE.Group();
-  const shirt = new THREE.MeshStandardMaterial({ color: [0xd64b38, 0x315bd8, 0x2f9c58, 0xe0c15c, 0x9b4aa0][seed % 5], roughness: 0.75 });
-  const pants = new THREE.MeshStandardMaterial({ color: [0x1a1d24, 0x293850, 0x3b332a][seed % 3], roughness: 0.82 });
-  const skin = new THREE.MeshStandardMaterial({ color: [0x8d5a3f, 0xbf8361, 0x6e4939][seed % 3], roughness: 0.8 });
-  group.add(box(1.05, 1.55, 0.62, shirt, 0, 1.9, 0, true));
-  group.add(box(0.28, 1.22, 0.24, skin, -0.76, 1.8, 0, true));
-  group.add(box(0.28, 1.22, 0.24, skin, 0.76, 1.8, 0, true));
-  group.add(box(0.34, 1.25, 0.3, pants, -0.25, 0.7, 0, true));
-  group.add(box(0.34, 1.25, 0.3, pants, 0.25, 0.7, 0, true));
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.52, 12, 10), skin);
-  head.position.set(0, 3.05, 0);
-  head.castShadow = true;
-  group.add(head);
+  const group = makeHuman(
+    [0xd64b38, 0x315bd8, 0x2f9c58, 0xe0c15c, 0x9b4aa0][seed % 5],
+    [0x1a1d24, 0x293850, 0x3b332a][seed % 3],
+    [0x8d5a3f, 0xbf8361, 0x6e4939][seed % 3],
+    [0x15100c, 0x3b2519, 0xc48a45][seed % 3]
+  );
   group.position.set(x, 0, z);
   scene.add(group);
   pedestrians.push({
