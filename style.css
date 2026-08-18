@@ -1,0 +1,148 @@
+:root {
+  color-scheme: dark;
+  --ink: #f3efe5;
+  --muted: #a9b0a8;
+  --panel: rgba(13, 17, 18, 0.86);
+  --line: rgba(255, 255, 255, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(228, 60, 43, 0.22), transparent 30%),
+    radial-gradient(circle at 80% 70%, rgba(25, 145, 133, 0.26), transparent 34%),
+    linear-gradient(135deg, #171b18 0%, #101415 48%, #1a1714 100%);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.shell {
+  position: relative;
+  width: min(100vw, 1280px);
+  height: min(100vh, 720px);
+  min-height: 420px;
+  background: #151817;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  background: #171b18;
+}
+
+.hud,
+.controls {
+  position: absolute;
+  z-index: 2;
+  left: clamp(10px, 2vw, 22px);
+  right: clamp(10px, 2vw, 22px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.hud {
+  top: clamp(10px, 2vw, 20px);
+  justify-content: space-between;
+}
+
+.hud div,
+.control {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.hud div {
+  width: 22%;
+  min-height: 54px;
+  padding: 9px 12px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: clamp(0.62rem, 1.3vw, 0.74rem);
+  text-transform: uppercase;
+}
+
+strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: clamp(0.86rem, 1.8vw, 1.05rem);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controls {
+  bottom: clamp(10px, 2vw, 18px);
+  justify-content: space-between;
+  max-width: 520px;
+  margin-inline: auto;
+}
+
+.control {
+  display: grid;
+  width: clamp(42px, 9vw, 58px);
+  aspect-ratio: 1;
+  place-items: center;
+  color: #e2ded4;
+  cursor: pointer;
+  font: inherit;
+  font-size: clamp(1rem, 3vw, 1.45rem);
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.control:active,
+.control.is-active {
+  border-color: rgba(240, 208, 92, 0.72);
+  background: rgba(77, 82, 67, 0.92);
+}
+
+.control-brake {
+  color: #f0d05c;
+}
+
+.control-reset {
+  color: #f3efe5;
+}
+
+@media (max-width: 680px) {
+  .hud {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hud div {
+    width: auto;
+    min-height: 46px;
+    padding: 7px 9px;
+  }
+
+  .controls {
+    gap: 7px;
+  }
+}
