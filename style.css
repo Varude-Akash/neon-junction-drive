@@ -21,17 +21,17 @@ body {
   place-items: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at 25% 20%, rgba(228, 60, 43, 0.22), transparent 30%),
-    radial-gradient(circle at 80% 70%, rgba(25, 145, 133, 0.26), transparent 34%),
-    linear-gradient(135deg, #171b18 0%, #101415 48%, #1a1714 100%);
+    radial-gradient(circle at 16% 20%, rgba(218, 67, 43, 0.18), transparent 28%),
+    radial-gradient(circle at 78% 66%, rgba(28, 166, 151, 0.2), transparent 32%),
+    linear-gradient(135deg, #131716 0%, #091011 50%, #191613 100%);
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 .shell {
   position: relative;
-  width: min(100vw, 1280px);
-  height: min(100vh, 720px);
+  width: 100vw;
+  height: 100vh;
   min-height: 420px;
   background: #151817;
 }
@@ -48,16 +48,16 @@ canvas {
 .controls {
   position: absolute;
   z-index: 2;
-  left: clamp(10px, 2vw, 22px);
-  right: clamp(10px, 2vw, 22px);
   display: flex;
   align-items: center;
-  gap: 12px;
   pointer-events: none;
 }
 
 .hud {
+  left: clamp(8px, 1.8vw, 22px);
+  right: clamp(8px, 1.8vw, 22px);
   top: clamp(10px, 2vw, 20px);
+  gap: 12px;
   justify-content: space-between;
 }
 
@@ -71,9 +71,9 @@ canvas {
 }
 
 .hud div {
-  width: 22%;
-  min-height: 54px;
-  padding: 9px 12px;
+  width: min(23%, 258px);
+  min-height: 50px;
+  padding: 8px 11px;
 }
 
 .label {
@@ -95,15 +95,14 @@ strong {
 }
 
 .controls {
-  bottom: clamp(10px, 2vw, 18px);
+  inset: auto clamp(14px, 3vw, 34px) clamp(14px, 3vw, 30px) clamp(14px, 3vw, 34px);
   justify-content: space-between;
-  max-width: 520px;
-  margin-inline: auto;
+  gap: 18px;
 }
 
 .control {
   display: grid;
-  width: clamp(42px, 9vw, 58px);
+  width: clamp(42px, 7vw, 56px);
   aspect-ratio: 1;
   place-items: center;
   color: #e2ded4;
@@ -114,6 +113,37 @@ strong {
   line-height: 1;
   pointer-events: auto;
   touch-action: none;
+}
+
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, clamp(42px, 7vw, 56px));
+  grid-template-rows: repeat(2, clamp(42px, 7vw, 56px));
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.actions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.control-up {
+  grid-column: 2;
+}
+
+.control-left {
+  grid-column: 1;
+}
+
+.control-down {
+  grid-column: 2;
+}
+
+.control-right {
+  grid-column: 3;
 }
 
 .control:active,
@@ -143,6 +173,6 @@ strong {
   }
 
   .controls {
-    gap: 7px;
+    align-items: end;
   }
 }
