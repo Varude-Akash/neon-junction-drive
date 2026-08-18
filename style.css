@@ -1,9 +1,11 @@
 :root {
   color-scheme: dark;
-  --ink: #f7efe2;
-  --muted: #b9b0a4;
-  --panel: rgba(8, 10, 11, 0.74);
-  --line: rgba(255, 255, 255, 0.16);
+  --ink: #f4f9ff;
+  --muted: #8293a7;
+  --panel: rgba(6, 16, 26, 0.78);
+  --line: rgba(194, 233, 255, 0.24);
+  --acid: #d8ff3e;
+  --cyan: #24d6ff;
 }
 
 * {
@@ -20,16 +22,33 @@ body,
 }
 
 body {
-  background: #050707;
+  background: #07111d;
   color: var(--ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(216, 255, 62, 0.11), transparent 18%, transparent 82%, rgba(216, 255, 62, 0.11)),
+    radial-gradient(circle at 50% 78%, rgba(36, 214, 255, 0.18), transparent 44%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+body.boosting::after {
+  opacity: 1;
 }
 
 canvas {
   display: block;
   width: 100vw;
   height: 100vh;
-  background: #050707;
+  background: #07111d;
 }
 
 .hud {
@@ -47,10 +66,10 @@ canvas {
 .hud div,
 .hint {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--panel);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45), 0 0 34px rgba(36, 214, 255, 0.08);
+  backdrop-filter: blur(12px);
 }
 
 .hud div {
@@ -61,9 +80,10 @@ canvas {
 .hud span {
   display: block;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -73,9 +93,16 @@ canvas {
   overflow: hidden;
   color: var(--ink);
   font-size: clamp(1rem, 2vw, 1.3rem);
-  font-weight: 900;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hud div:nth-child(1) strong,
+.hud div:nth-child(3) strong {
+  color: var(--acid);
+  text-shadow: 0 0 18px rgba(216, 255, 62, 0.38);
 }
 
 .hint {
@@ -85,9 +112,11 @@ canvas {
   z-index: 2;
   max-width: calc(100vw - 24px);
   padding: 10px 13px;
-  color: #eee2cc;
+  color: #dce6ef;
   font-size: clamp(0.78rem, 1.8vw, 0.95rem);
-  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   pointer-events: none;
 }
 
