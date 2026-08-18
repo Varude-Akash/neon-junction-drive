@@ -1,8 +1,8 @@
 :root {
   color-scheme: dark;
-  --ink: #f3efe5;
-  --muted: #a9b0a8;
-  --panel: rgba(13, 17, 18, 0.86);
+  --ink: #f7efe2;
+  --muted: #b9b0a4;
+  --panel: rgba(8, 10, 11, 0.74);
   --line: rgba(255, 255, 255, 0.16);
 }
 
@@ -11,168 +11,99 @@
 }
 
 html,
-body {
+body,
+.shell {
+  width: 100%;
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 16% 20%, rgba(218, 67, 43, 0.18), transparent 28%),
-    radial-gradient(circle at 78% 66%, rgba(28, 166, 151, 0.2), transparent 32%),
-    linear-gradient(135deg, #131716 0%, #091011 50%, #191613 100%);
+  background: #050707;
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-}
-
-.shell {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  min-height: 420px;
-  background: #151817;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 canvas {
   display: block;
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
-  background: #171b18;
-}
-
-.hud,
-.controls {
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  pointer-events: none;
+  width: 100vw;
+  height: 100vh;
+  background: #050707;
 }
 
 .hud {
-  left: clamp(8px, 1.8vw, 22px);
-  right: clamp(8px, 1.8vw, 22px);
-  top: clamp(10px, 2vw, 20px);
-  gap: 12px;
-  justify-content: space-between;
+  position: fixed;
+  top: clamp(12px, 2.2vw, 24px);
+  left: clamp(12px, 2.2vw, 24px);
+  right: clamp(12px, 2.2vw, 24px);
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 180px));
+  gap: 10px;
+  pointer-events: none;
 }
 
 .hud div,
-.control {
-  min-width: 0;
+.hint {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
 }
 
 .hud div {
-  width: min(23%, 258px);
-  min-height: 50px;
-  padding: 8px 11px;
+  min-height: 58px;
+  padding: 9px 12px;
 }
 
-.label {
+.hud span {
   display: block;
-  margin-bottom: 3px;
   color: var(--muted);
-  font-size: clamp(0.62rem, 1.3vw, 0.74rem);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
-strong {
+.hud strong {
   display: block;
+  margin-top: 2px;
   overflow: hidden;
   color: var(--ink);
-  font-size: clamp(0.86rem, 1.8vw, 1.05rem);
-  font-weight: 800;
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.controls {
-  inset: auto clamp(14px, 3vw, 34px) clamp(14px, 3vw, 30px) clamp(14px, 3vw, 34px);
-  justify-content: space-between;
-  gap: 18px;
+.hint {
+  position: fixed;
+  right: clamp(12px, 2.2vw, 24px);
+  bottom: clamp(12px, 2.2vw, 24px);
+  z-index: 2;
+  max-width: calc(100vw - 24px);
+  padding: 10px 13px;
+  color: #eee2cc;
+  font-size: clamp(0.78rem, 1.8vw, 0.95rem);
+  font-weight: 700;
+  pointer-events: none;
 }
 
-.control {
-  display: grid;
-  width: clamp(42px, 7vw, 56px);
-  aspect-ratio: 1;
-  place-items: center;
-  color: #e2ded4;
-  cursor: pointer;
-  font: inherit;
-  font-size: clamp(1rem, 3vw, 1.45rem);
-  font-weight: 900;
-  line-height: 1;
-  pointer-events: auto;
-  touch-action: none;
-}
-
-.pad {
-  display: grid;
-  grid-template-columns: repeat(3, clamp(42px, 7vw, 56px));
-  grid-template-rows: repeat(2, clamp(42px, 7vw, 56px));
-  gap: 6px;
-  pointer-events: auto;
-}
-
-.actions {
-  display: flex;
-  align-items: end;
-  gap: 8px;
-  pointer-events: auto;
-}
-
-.control-up {
-  grid-column: 2;
-}
-
-.control-left {
-  grid-column: 1;
-}
-
-.control-down {
-  grid-column: 2;
-}
-
-.control-right {
-  grid-column: 3;
-}
-
-.control:active,
-.control.is-active {
-  border-color: rgba(240, 208, 92, 0.72);
-  background: rgba(77, 82, 67, 0.92);
-}
-
-.control-brake {
-  color: #f0d05c;
-}
-
-.control-reset {
-  color: #f3efe5;
-}
-
-@media (max-width: 680px) {
+@media (max-width: 620px) {
   .hud {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .hud div {
-    width: auto;
-    min-height: 46px;
-    padding: 7px 9px;
+    min-height: 50px;
+    padding: 7px 8px;
   }
 
-  .controls {
-    align-items: end;
+  .hint {
+    left: 12px;
+    right: 12px;
+    text-align: center;
   }
 }
