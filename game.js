@@ -9,10 +9,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8ec9ff);
 scene.fog = new THREE.FogExp2(0xb8dfff, 0.0012);
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.15));
+renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 
@@ -34,6 +33,7 @@ const skidMarks = [];
 const billboards = [];
 const jumpPads = [];
 const driftZones = [];
+let visibilityTimer = 0;
 
 const car = {
   position: new THREE.Vector3(-560, 0.45, -520),
@@ -134,20 +134,7 @@ function addLights() {
   scene.add(new THREE.HemisphereLight(0xeaf7ff, 0x3b2612, 1.85));
   const sun = new THREE.DirectionalLight(0xffca93, 2.8);
   sun.position.set(-240, 520, 180);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -950;
-  sun.shadow.camera.right = 950;
-  sun.shadow.camera.top = 950;
-  sun.shadow.camera.bottom = -950;
   scene.add(sun);
-
-  for (let i = 0; i < 42; i += 1) {
-    const color = [0xff4d74, 0x46e2d0, 0xffcf5a][i % 3];
-    const light = new THREE.PointLight(color, 1.7, 120, 1.7);
-    light.position.set(-820 + rand(i) * 1640, 9, -780 + rand(i + 4) * 1560);
-    scene.add(light);
-  }
 }
 
 function addRoad(horizontal, offset) {
@@ -186,7 +173,7 @@ function addBuilding(x, z, w, d, h, seed) {
       if (rand(seed + row * 13 + col) < 0.28) continue;
       const wx = x - w * 0.38 + col * (w * 0.76 / Math.max(1, cols - 1));
       const wy = 7 + row * 8;
-      const lit = rand(seed + col * 7 + row * 19) > 0.72;
+      const lit = rand(seed + col * 7 + row * 19) > 0.82;
       scene.add(box(4.8, 3.2, 0.2, lit ? mat.glowGold : mat.glass, wx, wy, faceZ, false));
     }
   }
@@ -241,9 +228,6 @@ function addStreetLight(x, z, rot = 0) {
   group.add(pole, arm, bulb);
   scene.add(group);
 
-  const light = new THREE.PointLight(0xffe1a4, 0.75, 42, 1.5);
-  light.position.set(x + Math.sin(rot) * 4.2, 7.8, z + Math.cos(rot) * 4.2);
-  scene.add(light);
 }
 
 function buildWorld() {
@@ -259,11 +243,11 @@ function buildWorld() {
   for (const z of roadZs) addRoad(true, z);
   for (const x of roadXs) addRoad(false, x);
 
-  for (let i = 0; i < roadXs.length; i += 1) {
-    for (let z = -680; z <= 680; z += 220) addStreetLight(roadXs[i] + 26, z, Math.PI);
+  for (let i = 0; i < roadXs.length; i += 2) {
+    for (let z = -620; z <= 620; z += 360) addStreetLight(roadXs[i] + 26, z, Math.PI);
   }
-  for (let i = 0; i < roadZs.length; i += 1) {
-    for (let x = -680; x <= 680; x += 260) addStreetLight(x, roadZs[i] - 26, Math.PI / 2);
+  for (let i = 0; i < roadZs.length; i += 2) {
+    for (let x = -620; x <= 620; x += 420) addStreetLight(x, roadZs[i] - 26, Math.PI / 2);
   }
 
   let seed = 1;
@@ -278,7 +262,7 @@ function buildWorld() {
       if (w < 42 || d < 42) continue;
       if (rand(seed) < 0.16) {
         addPalm((x1 + x2) / 2, (z1 + z2) / 2, 0.85);
-      } else if (rand(seed + 4) > 0.48 && w > 95) {
+      } else if (rand(seed + 4) > 0.63 && w > 95) {
         addBuilding(x1 + w * 0.28, z1 + d * 0.5, w * 0.42, d * 0.74, 28 + rand(seed + 6) * 80, seed);
         addBuilding(x2 - w * 0.24, z1 + d * 0.5, w * 0.36, d * 0.58, 22 + rand(seed + 7) * 64, seed + 12);
       } else {
@@ -288,7 +272,7 @@ function buildWorld() {
     }
   }
 
-  for (let i = 0; i < 65; i += 1) addPalm(-835 + rand(i) * 110, -840 + rand(i + 6) * 1680, 0.62 + rand(i + 8) * 0.28);
+  for (let i = 0; i < 28; i += 1) addPalm(-835 + rand(i) * 110, -840 + rand(i + 6) * 1680, 0.62 + rand(i + 8) * 0.28);
 
   addRamp(-160, -120, Math.PI / 2);
   addRamp(240, 310, 0);
@@ -405,7 +389,7 @@ function makeParkedCar(color, x, z, heading) {
 
 function addTraffic() {
   const colors = [0xd4503f, 0xe6bd58, 0x4ca89d, 0xd8d3c8, 0x6376cb, 0x9c4163];
-  for (let i = 0; i < 55; i += 1) {
+  for (let i = 0; i < 30; i += 1) {
     const horizontal = i % 2 === 0;
     if (horizontal) {
       const z = roadZs[i % roadZs.length] + (i % 4 < 2 ? -8 : 8);
@@ -449,7 +433,7 @@ function makePedestrian(x, z, seed) {
 }
 
 function addPedestrians() {
-  for (let i = 0; i < 80; i += 1) {
+  for (let i = 0; i < 42; i += 1) {
     const roadX = roadXs[i % roadXs.length] + (i % 3 === 0 ? 27 : -27);
     const roadZ = roadZs[(i * 3) % roadZs.length] + (i % 4 < 2 ? 27 : -27);
     const x = i % 2 === 0 ? roadX : -820 + rand(i) * 1640;
@@ -663,12 +647,12 @@ function updateTraffic(dt) {
     npc.speed = npc.baseSpeed * (0.8 + Math.sin(performance.now() * 0.001 + npc.baseSpeed) * 0.18);
 
     const d = npc.group.position.distanceTo(car.position);
-    if (inCar && d < 7.5) {
+    if (d < 7.5) {
       const away = car.position.clone().sub(npc.group.position).normalize();
       car.position.addScaledVector(away, 4.2);
       car.speed *= -0.42;
       car.bestStyle = Math.max(0, car.bestStyle - 25);
-    } else if (inCar && d < 15 && Math.abs(car.speed) > 45) {
+    } else if (d < 15 && Math.abs(car.speed) > 45) {
       car.bestStyle += Math.round(18 * dt);
     }
   }
@@ -706,7 +690,7 @@ function updateCheckpoints(dt) {
   }
 
   const target = checkpoints[car.drop];
-  if (target && inCar && car.position.distanceTo(target) < 18) {
+  if (target && car.position.distanceTo(target) < 18) {
     car.drop = (car.drop + 1) % checkpoints.length;
     car.bestStyle += 180;
     car.boost = Math.min(100, car.boost + 28);
@@ -716,6 +700,30 @@ function updateCheckpoints(dt) {
 function updateBillboards(dt) {
   for (const sign of billboards) {
     sign.material.opacity = 0.75 + Math.sin(performance.now() * 0.004 + sign.position.x) * 0.25;
+  }
+}
+
+function updateVisibility(dt) {
+  visibilityTimer -= dt;
+  if (visibilityTimer > 0) return;
+  visibilityTimer = 0.35;
+
+  const near = car.position;
+  const trafficRange = 520 * 520;
+  const pedestrianRange = 360 * 360;
+  const signRange = 600 * 600;
+
+  for (const npc of traffic) {
+    npc.group.visible = npc.group.position.distanceToSquared(near) < trafficRange;
+  }
+  for (const parked of parkedCars) {
+    parked.group.visible = parked.group === activeVehicle || parked.group.position.distanceToSquared(near) < trafficRange;
+  }
+  for (const ped of pedestrians) {
+    ped.group.visible = !inCar || ped.group.position.distanceToSquared(near) < pedestrianRange;
+  }
+  for (const sign of billboards) {
+    sign.visible = sign.position.distanceToSquared(near) < signRange;
   }
 }
 
@@ -785,6 +793,7 @@ function animate() {
   updatePedestrians(dt);
   updateCheckpoints(dt);
   updateBillboards(dt);
+  updateVisibility(dt);
   updateCamera(dt);
   updateHud();
   renderer.render(scene, camera);
