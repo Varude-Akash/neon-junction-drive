@@ -8,8 +8,8 @@ const damageEl = document.getElementById("damage");
 const scene = new THREE.Scene();
 const clock = new THREE.Clock();
 const keys = new Set();
-const WORLD = 4200;
-const PLAY_LIMIT = 1450;
+const WORLD = 3600;
+const PLAY_LIMIT = 1350;
 const roadSegments = [];
 const roadRoutes = [];
 const colliders = [];
@@ -18,27 +18,16 @@ const parkedCars = [];
 const pedestrians = [];
 const checkpoints = [];
 const checkpointMeshes = [];
-let playerCar;
-let activeVehicle;
-let person;
-let contactShadow;
-let smoke;
+let playerCar, activeVehicle, person, contactShadow, smoke;
 let inCar = true;
 let cooldown = 0;
-let rescueTimer = 0;
 
 function rand(seed) {
   const x = Math.sin(seed * 127.31) * 43758.5453;
   return x - Math.floor(x);
 }
-
-function terrainHeight(x, z) {
-  const flatten = 1 - THREE.MathUtils.clamp(1 - Math.hypot(x + 80, z + 80) / 560, 0, 1) * 0.72;
-  const rolling = Math.sin(x * 0.006 + z * 0.004) * 2.4 + Math.cos(z * 0.006 - x * 0.002) * 2.0 + Math.sin((x + z) * 0.0035) * 3.2;
-  const hills = Math.exp(-((x - 540) ** 2 + (z - 520) ** 2) / 220000) * 30 + Math.exp(-((x + 680) ** 2 + (z - 430) ** 2) / 190000) * 20 + Math.exp(-((x - 80) ** 2 + (z + 720) ** 2) / 190000) * 16;
-  return (rolling + hills) * flatten;
-}
-function surfaceY(x, z) { return terrainHeight(x, z) + 0.45; }
+function terrainHeight() { return 0; }
+function surfaceY() { return 0.45; }
 function segmentDistance(px, pz, ax, az, bx, bz) {
   const abx = bx - ax, abz = bz - az, apx = px - ax, apz = pz - az;
   const t = THREE.MathUtils.clamp((apx * abx + apz * abz) / (abx * abx + abz * abz || 1), 0, 1);
@@ -49,30 +38,27 @@ function isOnRoad(pos) {
   return roadSegments.some((s) => segmentDistance(pos.x, pos.z, s.ax, s.az, s.bx, s.bz) < s.width * 0.5);
 }
 function nearestRoadSample(pos) {
-  let best = null;
-  let bestDist = Infinity;
-  for (const route of roadRoutes) {
-    for (const sample of route.samples) {
-      const d = Math.hypot(pos.x - sample.position.x, pos.z - sample.position.z);
-      if (d < bestDist) { best = sample; bestDist = d; }
-    }
+  let best = null, bestDist = Infinity;
+  for (const route of roadRoutes) for (const sample of route.samples) {
+    const d = Math.hypot(pos.x - sample.position.x, pos.z - sample.position.z);
+    if (d < bestDist) { best = sample; bestDist = d; }
   }
   return best;
 }
 
-function skyTexture() {
+function makeSkyTexture() {
   const c = document.createElement("canvas");
   c.width = 96;
   c.height = 256;
   const ctx = c.getContext("2d");
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, "#5db7ff");
-  g.addColorStop(0.5, "#c9efff");
+  g.addColorStop(0, "#62b9ff");
+  g.addColorStop(0.5, "#c8efff");
   g.addColorStop(1, "#ffffff");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillRect(0, 0, 96, 256);
   for (let i = 0; i < 42; i += 1) {
-    const x = rand(i) * 96, y = 20 + rand(i + 4) * 112, r = 6 + rand(i + 9) * 18;
+    const x = rand(i) * 96, y = 18 + rand(i + 4) * 112, r = 6 + rand(i + 9) * 18;
     const cloud = ctx.createRadialGradient(x, y, 0, x, y, r);
     cloud.addColorStop(0, "rgba(255,255,255,.74)");
     cloud.addColorStop(1, "rgba(255,255,255,0)");
@@ -83,7 +69,7 @@ function skyTexture() {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-scene.background = skyTexture();
+scene.background = makeSkyTexture();
 scene.fog = new THREE.Fog(0xc8eaff, 180, 1700);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -91,17 +77,17 @@ renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.3));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = 1.1;
 const camera = new THREE.PerspectiveCamera(66, 1, 0.1, 3000);
-scene.add(new THREE.HemisphereLight(0xf8fbff, 0x6b8754, 2.25));
-const sun = new THREE.DirectionalLight(0xffffff, 2.6);
+scene.add(new THREE.HemisphereLight(0xf8fbff, 0x6d8550, 2.35));
+const sun = new THREE.DirectionalLight(0xffffff, 2.7);
 sun.position.set(-260, 560, 290);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -620;
-sun.shadow.camera.right = 620;
-sun.shadow.camera.top = 620;
-sun.shadow.camera.bottom = -620;
+sun.shadow.camera.left = -650;
+sun.shadow.camera.right = 650;
+sun.shadow.camera.top = 650;
+sun.shadow.camera.bottom = -650;
 scene.add(sun);
 
 function tex(c1, c2, scale = 4, noise = 48) {
@@ -125,7 +111,7 @@ function tex(c1, c2, scale = 4, noise = 48) {
   return t;
 }
 const mat = {
-  grass: new THREE.MeshStandardMaterial({ map: tex("#5da65a", "#2e7136", 34, 150), roughness: .98 }),
+  grass: new THREE.MeshStandardMaterial({ map: tex("#62aa5c", "#2e7136", 36, 160), roughness: .98 }),
   asphalt: new THREE.MeshStandardMaterial({ map: tex("#30363b", "#15191d", 8, 90), roughness: .94 }),
   shoulder: new THREE.MeshStandardMaterial({ color: 0x858d86, roughness: .86 }),
   lane: new THREE.MeshStandardMaterial({ color: 0xf8f1d4, roughness: .58 }),
@@ -163,8 +149,8 @@ const roads = [
   { w: 25, p: [[-520,-720],[-430,-530],[-305,-305],[-250,-120],[-315,90],[-265,315],[-95,520],[130,760]], closed: false },
   { w: 24, p: [[260,720],[330,560],[430,420],[565,320],[735,250],[850,160]], closed: false },
 ];
-const startPoint = new THREE.Vector3(-510, surfaceY(-510, -500), -500);
-const car = { position: startPoint.clone(), heading: .74, speed: 0, steer: 0, turnVelocity: 0, tilt: 0, boost: 100, drop: 0, damage: 0, hitCooldown: 0, airborne: 0, yVelocity: 0 };
+const startPoint = new THREE.Vector3(-510, 0.45, -500);
+const car = { position: startPoint.clone(), heading: .74, speed: 0, steer: 0, turnVelocity: 0, tilt: 0, boost: 100, drop: 0, damage: 0, hitCooldown: 0 };
 
 function drawRoad(route) {
   const pts = route.p.map(([x, z]) => new THREE.Vector3(x, 0, z));
@@ -174,17 +160,17 @@ function drawRoad(route) {
   let laneCarry = 0;
   for (let i = 1; i <= steps; i += 1) {
     const a = curve.getPoint((i - 1) / steps), b = curve.getPoint(i / steps), c = a.clone().lerp(b, .5);
-    const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz) + 5.5, heading = Math.atan2(dx, dz), y = terrainHeight(c.x, c.z);
-    const shoulder = box(route.w + 12, .08, len + 1, mat.shoulder, c.x, y + .06, c.z);
+    const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz) + 5.5, heading = Math.atan2(dx, dz);
+    const shoulder = box(route.w + 12, .08, len + 1, mat.shoulder, c.x, .06, c.z);
     shoulder.rotation.y = heading;
     scene.add(shoulder);
-    const asphalt = box(route.w, .09, len + 2.5, mat.asphalt, c.x, y + .13, c.z);
+    const asphalt = box(route.w, .09, len + 2.5, mat.asphalt, c.x, .13, c.z);
     asphalt.rotation.y = heading;
     scene.add(asphalt);
     roadSegments.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, width: route.w + 10 });
     laneCarry += len;
     if (laneCarry > 31) {
-      const lane = box(1.2, .035, 13.5, mat.lane, c.x, y + .21, c.z);
+      const lane = box(1.2, .035, 13.5, mat.lane, c.x, .21, c.z);
       lane.rotation.y = heading;
       scene.add(lane);
       laneCarry = 0;
@@ -194,38 +180,43 @@ function drawRoad(route) {
   roadRoutes.push({ samples, width: route.w });
 }
 function addGround() {
-  const geo = new THREE.PlaneGeometry(WORLD, WORLD, 128, 128);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i += 1) pos.setZ(i, terrainHeight(pos.getX(i), pos.getY(i)));
-  geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, mat.grass);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD, 1, 1), mat.grass);
   ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
   ground.receiveShadow = true;
   scene.add(ground);
-  const dirt = box(500, .04, 310, mat.dirt, 390, terrainHeight(390, 455) + .05, 455);
+  const dirt = box(500, .04, 310, mat.dirt, 390, .03, 455);
   dirt.rotation.y = .32;
   scene.add(dirt);
-  const sand = box(310, .04, 900, mat.sand, -1180, terrainHeight(-1180, 0) + .02, 0);
+  const sand = box(360, .04, 900, mat.sand, -1260, .02, 0);
   sand.castShadow = false;
   scene.add(sand);
 }
 function addBuildings() {
   [[-455,-170,90,56,92,-.18],[-330,-250,70,72,58,.24],[-190,-145,115,62,126,.07],[-80,-10,78,92,74,-.32],[80,-155,94,58,82,.38],[255,-215,72,84,60,-.12],[380,-20,105,70,92,.28],[505,170,80,74,54,-.28],[-535,155,78,62,48,.44],[-325,210,92,74,68,-.36],[-90,300,120,80,42,.16],[135,430,78,62,50,-.24]].forEach((b, i) => {
-    const [x, z, w, d, h, rot] = b, y = terrainHeight(x, z);
-    const body = box(w, h, d, new THREE.MeshStandardMaterial({ color: [0x39464f,0x514437,0x374b43,0x4a3948,0x30384e][i % 5], roughness: .8 }), x, y + h / 2, z);
+    const [x, z, w, d, h, rot] = b;
+    const body = box(w, h, d, new THREE.MeshStandardMaterial({ color: [0x39464f,0x514437,0x374b43,0x4a3948,0x30384e][i % 5], roughness: .8 }), x, h / 2, z);
     body.rotation.y = rot;
     scene.add(body);
     colliders.push({ x: x - w / 2, z: z - d / 2, w, d });
     for (let r = 0; r < Math.max(2, Math.floor(h / 14)); r += 1) for (let c = 0; c < Math.max(2, Math.floor(w / 18)); c += 1) if (rand(i + r * 9 + c) > .35) {
-      const win = box(4.5, 3, .16, rand(i + r + c) > .86 ? new THREE.MeshBasicMaterial({ color: 0xffcf69 }) : mat.glass, x - w * .32 + c * 14, y + 7 + r * 10, z + d / 2 + .12);
+      const win = box(4.5, 3, .16, rand(i + r + c) > .86 ? new THREE.MeshBasicMaterial({ color: 0xffcf69 }) : mat.glass, x - w * .32 + c * 14, 7 + r * 10, z + d / 2 + .12);
       win.rotation.y = rot;
       scene.add(win);
     }
   });
 }
+function addHill(x, z, sx, sy, sz, color, seed) {
+  const hill = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color, roughness: .98 }));
+  hill.position.set(x, sy * .42 - .35, z);
+  hill.scale.set(sx, sy, sz);
+  hill.rotation.set(rand(seed) * .2, rand(seed + 1) * Math.PI, rand(seed + 2) * .18);
+  hill.receiveShadow = true;
+  scene.add(hill);
+}
 function addTree(x, z, s, seed, type = 0) {
-  const y = terrainHeight(x, z), g = new THREE.Group();
-  g.position.set(x, y, z);
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
   g.add(cyl(.34 * s, .5 * s, 5.2 * s, new THREE.MeshStandardMaterial({ color: 0x5d4127, roughness: .9 }), 0, 2.6 * s, 0, 8));
   const leafMat = new THREE.MeshStandardMaterial({ color: type ? 0x1d5c35 : 0x327d3f, roughness: .94 });
   if (type) for (let i = 0; i < 3; i += 1) { const m = new THREE.Mesh(new THREE.ConeGeometry((2.8 - i * .45) * s, 4.1 * s, 9), leafMat); m.position.y = (4.5 + i * 1.55) * s; m.castShadow = true; g.add(m); }
@@ -234,14 +225,14 @@ function addTree(x, z, s, seed, type = 0) {
 }
 function addBush(x, z, s, seed) {
   const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.8 * s, 1), new THREE.MeshStandardMaterial({ color: seed % 2 ? 0x3f8b3f : 0x527b36, roughness: .98 }));
-  m.position.set(x, terrainHeight(x, z) + .9 * s, z);
+  m.position.set(x, .9 * s, z);
   m.scale.set(1.4, .65, 1);
   m.castShadow = true;
   scene.add(m);
 }
 function addRock(x, z, s, seed) {
   const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), mat.rock);
-  r.position.set(x, terrainHeight(x, z) + s * .42, z);
+  r.position.set(x, s * .42, z);
   r.rotation.set(rand(seed) * 1.4, rand(seed + 2) * Math.PI, rand(seed + 4) * .7);
   r.scale.set(1.5, .65 + rand(seed + 5) * .7, 1);
   r.castShadow = true;
@@ -255,23 +246,23 @@ function addNature() {
     const x = s.position.x + n.x * side * (s.width * .82 + 20 + rand(i) * 36), z = s.position.z + n.z * side * (s.width * .82 + 20 + rand(i + 1) * 36);
     if (Math.abs(x) < 1100 && Math.abs(z) < 1100 && !isOnRoad(new THREE.Vector3(x, 0, z))) (i % 3 === 0 ? addTree : addBush)(x, z, .8 + rand(i + 5) * .7, i, i % 2);
   }
-  for (let i = 0; i < 380; i += 1) {
-    const x = -1200 + rand(i) * 2400, z = -1200 + rand(i + 11) * 2400;
+  for (let i = 0; i < 390; i += 1) {
+    const x = -1250 + rand(i) * 2500, z = -1250 + rand(i + 11) * 2500;
     if (isOnRoad(new THREE.Vector3(x, 0, z))) continue;
     if (rand(i + 2) > .68) addTree(x, z, .65 + rand(i + 3) * .75, i, rand(i + 8) > .55 ? 1 : 0);
     else if (rand(i + 4) > .47) addBush(x, z, .8 + rand(i + 5) * 1.2, i);
     if (rand(i + 17) > .75) addRock(x + rand(i + 9) * 22, z + rand(i + 13) * 22, 1.2 + rand(i + 19) * 5, i);
   }
+  for (let i = 0; i < 28; i += 1) addHill(-1200 + rand(i) * 2500, -1200 + rand(i + 4) * 2500, 35 + rand(i + 8) * 90, 8 + rand(i + 10) * 28, 28 + rand(i + 12) * 90, rand(i + 6) > .5 ? 0x4c9851 : 0x6b8b52, i);
 }
 function buildWorld() {
   addGround();
   roads.forEach(drawRoad);
-  roads[0].p.filter((_, i) => i % 2 === 1).forEach(([x, z]) => checkpoints.push(new THREE.Vector3(x, surfaceY(x, z) + .85, z)));
+  roads[0].p.filter((_, i) => i % 2 === 1).forEach(([x, z]) => checkpoints.push(new THREE.Vector3(x, 1.3, z)));
   addBuildings();
   addNature();
   checkpoints.forEach((p) => { const ring = new THREE.Mesh(new THREE.TorusGeometry(13, .7, 12, 64), new THREE.MeshBasicMaterial({ color: 0xffd35c, transparent: true, opacity: .84 })); ring.rotation.x = Math.PI / 2; ring.position.copy(p); scene.add(ring); checkpointMeshes.push(ring); });
 }
-
 function makeCar(bodyMat = mat.white) {
   const g = new THREE.Group();
   const body = box(5.8, .75, 9.4, bodyMat, 0, .65, 0), hood = box(5.2, .38, 3.4, bodyMat, 0, 1.02, 2.25), rear = box(5.35, .5, 2.2, bodyMat, 0, 1.0, -3.05), cabin = box(4.15, .9, 2.7, mat.glass, 0, 1.55, -.55);
@@ -307,20 +298,20 @@ function addActors() {
   const colors = [0xd4503f,0xe6bd58,0x4ca89d,0xd8d3c8,0x6376cb,0x9c4163];
   for (let i = 0; i < 32; i += 1) {
     const route = roadRoutes[i % roadRoutes.length], si = Math.floor(rand(i + 4) * route.samples.length), s = route.samples[si], off = i % 2 ? -6 : 6, n = new THREE.Vector3(Math.cos(s.heading), 0, -Math.sin(s.heading)), p = s.position.clone().addScaledVector(n, off), mesh = makeCar(new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: .55, metalness: .12 }));
-    mesh.position.set(p.x, surfaceY(p.x, p.z), p.z);
+    mesh.position.set(p.x, .45, p.z);
     mesh.rotation.y = s.heading;
     traffic.push({ group: mesh, routeIndex: i % roadRoutes.length, sampleIndex: si, laneOffset: off, heading: s.heading, speed: 17 + rand(i + 3) * 16, baseSpeed: 17 + rand(i + 3) * 16 });
   }
   const samples = roadRoutes.flatMap((r) => r.samples);
   for (let i = 8, c = 0; i < samples.length && c < 22; i += 17, c += 1) {
     const s = samples[i], side = c % 2 ? -1 : 1, n = new THREE.Vector3(Math.cos(s.heading), 0, -Math.sin(s.heading)), p = s.position.clone().addScaledVector(n, side * (s.width * .75 + 7)), mesh = makeCar(new THREE.MeshStandardMaterial({ color: colors[c % colors.length], roughness: .58, metalness: .12 }));
-    mesh.position.set(p.x, surfaceY(p.x, p.z), p.z);
+    mesh.position.set(p.x, .45, p.z);
     mesh.rotation.y = s.heading + (side > 0 ? .08 : Math.PI - .08);
     parkedCars.push({ group: mesh });
   }
   for (let i = 0; i < 62; i += 1) {
     const s = samples[(i * 11 + 7) % samples.length], side = i % 2 ? -1 : 1, n = new THREE.Vector3(Math.cos(s.heading), 0, -Math.sin(s.heading)), p = s.position.clone().addScaledVector(n, side * (24 + rand(i) * 36)), h = makeHuman([0xd64b38,0x315bd8,0x2f9c58,0xe0c15c,0x9b4aa0][i % 5], [0x1a1d24,0x293850,0x3b332a][i % 3], [0x8d5a3f,0xbf8361,0x6e4939][i % 3]);
-    h.position.set(p.x, terrainHeight(p.x, p.z), p.z);
+    h.position.set(p.x, 0, p.z);
     pedestrians.push({ group: h, base: h.position.clone(), target: h.position.clone().add(new THREE.Vector3(Math.sin(i) * 35, 0, Math.cos(i) * 35)), speed: 3.2 + rand(i + 9) * 2.7, panic: 0, injured: 0, fallen: 0, hitVelocity: new THREE.Vector3(), phase: rand(i + 12) * Math.PI * 2, seed: i });
   }
   contactShadow = new THREE.Mesh(new THREE.CircleGeometry(4.4, 32), new THREE.MeshBasicMaterial({ color: 0x02060d, transparent: true, opacity: .42, depthWrite: false }));
@@ -341,9 +332,6 @@ function reset() {
   car.drop = 0;
   car.damage = 0;
   car.hitCooldown = 0;
-  car.airborne = 0;
-  car.yVelocity = 0;
-  rescueTimer = 0;
   inCar = true;
   activeVehicle = playerCar;
   playerCar.visible = true;
@@ -351,13 +339,11 @@ function reset() {
 }
 function rescueToRoad(pos = car.position) {
   const sample = nearestRoadSample(pos) || roadRoutes[0].samples[0];
-  car.position.set(sample.position.x, surfaceY(sample.position.x, sample.position.z), sample.position.z);
+  car.position.set(sample.position.x, .45, sample.position.z);
   car.heading = sample.heading;
   car.speed = 0;
-  car.yVelocity = 0;
-  car.airborne = 0;
   if (activeVehicle) { activeVehicle.position.copy(car.position); activeVehicle.rotation.y = car.heading; activeVehicle.rotation.x = 0; activeVehicle.rotation.z = 0; }
-  if (!inCar && person) { person.position.set(car.position.x, terrainHeight(car.position.x, car.position.z), car.position.z); person.rotation.y = car.heading; }
+  if (!inCar && person) { person.position.set(car.position.x, 0, car.position.z); person.rotation.y = car.heading; }
 }
 function nearestParked(max = 14) {
   let nearest = null, best = max;
@@ -367,13 +353,13 @@ function nearestParked(max = 14) {
 function toggleEnterExit() {
   if (cooldown > 0) return;
   cooldown = .35;
-  if (inCar) { inCar = false; car.speed = 0; person.visible = true; person.position.copy(car.position).add(new THREE.Vector3(Math.cos(car.heading) * 6, 0, -Math.sin(car.heading) * 6)); person.position.y = terrainHeight(person.position.x, person.position.z); person.rotation.y = car.heading; return; }
+  if (inCar) { inCar = false; car.speed = 0; person.visible = true; person.position.copy(car.position).add(new THREE.Vector3(Math.cos(car.heading) * 6, 0, -Math.sin(car.heading) * 6)); person.position.y = 0; person.rotation.y = car.heading; return; }
   const target = nearestParked();
   if (!target) return;
   inCar = true;
   activeVehicle = target.group;
   car.position.copy(target.group.position);
-  car.position.y = surfaceY(car.position.x, car.position.z);
+  car.position.y = .45;
   car.heading = target.group.rotation.y;
   car.speed = 0;
   car.damage = target.own ? car.damage : 0;
@@ -381,12 +367,6 @@ function toggleEnterExit() {
 }
 function hitBuilding(pos) { return colliders.some((r) => pos.x > r.x - 4 && pos.x < r.x + r.w + 4 && pos.z > r.z - 4 && pos.z < r.z + r.d + 4); }
 function addDamage(n, dir) { car.damage = THREE.MathUtils.clamp(car.damage + n, 0, 100); car.hitCooldown = .24; if (dir) { activeVehicle.rotation.z += THREE.MathUtils.clamp(dir.x * .08, -.14, .14); activeVehicle.rotation.x += THREE.MathUtils.clamp(dir.z * .04, -.08, .08); } }
-function keepInPlayableArea(dt) {
-  const pos = inCar ? car.position : person.position;
-  const outside = Math.abs(pos.x) > PLAY_LIMIT || Math.abs(pos.z) > PLAY_LIMIT || pos.y < -20 || pos.y > 160;
-  rescueTimer = outside ? rescueTimer + dt : 0;
-  if (outside && rescueTimer > 0.35) rescueToRoad(pos);
-}
 function updatePerson(dt) {
   const f = (keys.has("w") || keys.has("arrowup") ? 1 : 0) - (keys.has("s") || keys.has("arrowdown") ? 1 : 0), t = (keys.has("a") || keys.has("arrowleft") ? 1 : 0) - (keys.has("d") || keys.has("arrowright") ? 1 : 0);
   person.rotation.y += t * 2.8 * dt;
@@ -394,7 +374,7 @@ function updatePerson(dt) {
   person.position.addScaledVector(fw, f * (keys.has("shift") ? 18 : 10) * dt);
   person.position.x = THREE.MathUtils.clamp(person.position.x, -PLAY_LIMIT, PLAY_LIMIT);
   person.position.z = THREE.MathUtils.clamp(person.position.z, -PLAY_LIMIT, PLAY_LIMIT);
-  person.position.y = terrainHeight(person.position.x, person.position.z);
+  person.position.y = 0;
   if (hitBuilding(person.position)) person.position.copy(old);
   walk(person, performance.now() * .01, Math.abs(f) * 1.1);
   car.position.copy(person.position);
@@ -404,9 +384,9 @@ function updatePlayer(dt) {
   cooldown = Math.max(0, cooldown - dt);
   car.hitCooldown = Math.max(0, car.hitCooldown - dt);
   if (keys.has("e")) toggleEnterExit();
-  if (!inCar) { updatePerson(dt); keepInPlayableArea(dt); return; }
+  if (!inCar) { updatePerson(dt); return; }
   const accel = keys.has("w") || keys.has("arrowup"), brake = keys.has("s") || keys.has("arrowdown"), left = keys.has("a") || keys.has("arrowleft"), right = keys.has("d") || keys.has("arrowright"), hand = keys.has(" "), boosting = (keys.has("shift") || keys.has("shiftleft") || keys.has("shiftright")) && car.boost > 0 && car.speed > 12;
-  const steerTarget = (left ? 1 : 0) - (right ? 1 : 0), roadGrip = isOnRoad(car.position) ? 1 : .72, damageGrip = THREE.MathUtils.lerp(1, .56, car.damage / 100), max = (boosting ? 96 : 72) * THREE.MathUtils.lerp(1, .58, car.damage / 100);
+  const steerTarget = (left ? 1 : 0) - (right ? 1 : 0), roadGrip = isOnRoad(car.position) ? 1 : .76, damageGrip = THREE.MathUtils.lerp(1, .56, car.damage / 100), max = (boosting ? 96 : 72) * THREE.MathUtils.lerp(1, .58, car.damage / 100);
   car.steer = THREE.MathUtils.lerp(car.steer, steerTarget, 1 - Math.pow(.0009, dt));
   if (Math.abs(steerTarget) < .01) car.steer *= Math.pow(.08, dt);
   if (accel) car.speed += (boosting ? 82 : 50) * dt;
@@ -423,8 +403,8 @@ function updatePlayer(dt) {
   if (hand) car.position.addScaledVector(side, car.steer * Math.abs(car.speed) * .23 * dt);
   car.position.x = THREE.MathUtils.clamp(car.position.x, -PLAY_LIMIT, PLAY_LIMIT);
   car.position.z = THREE.MathUtils.clamp(car.position.z, -PLAY_LIMIT, PLAY_LIMIT);
-  const gy = surfaceY(car.position.x, car.position.z);
-  if (car.airborne > 0 || car.position.y > gy + .02) { car.yVelocity -= 46 * dt; car.position.y += car.yVelocity * dt; if (car.position.y <= gy) { car.position.y = gy; car.airborne = 0; car.yVelocity = 0; } } else car.position.y = THREE.MathUtils.lerp(car.position.y, gy, 1 - Math.pow(.0008, dt));
+  car.position.y = .45;
+  if (Math.abs(car.position.x) >= PLAY_LIMIT - 1 || Math.abs(car.position.z) >= PLAY_LIMIT - 1) rescueToRoad(car.position);
   if (hitBuilding(car.position) || parkedCars.some((p) => p.group !== activeVehicle && p.group.position.distanceTo(car.position) < 7.4)) { const force = Math.abs(car.speed), dir = car.position.clone().sub(old).normalize(); car.position.copy(old); car.speed *= -.28; if (force > 10) addDamage(5 + force * .26, dir); }
   activeVehicle.position.copy(car.position);
   activeVehicle.rotation.y = car.heading;
@@ -433,7 +413,6 @@ function updatePlayer(dt) {
   activeVehicle.rotation.z = car.tilt;
   activeVehicle.rotation.x = THREE.MathUtils.lerp(activeVehicle.rotation.x, 0, 1 - Math.pow(.006, dt));
   document.body.classList.toggle("boosting", boosting);
-  keepInPlayableArea(dt);
 }
 function updateTraffic(dt) {
   for (const n of traffic) {
@@ -442,7 +421,7 @@ function updateTraffic(dt) {
     const dir = to.normalize();
     n.heading = Math.atan2(dir.x, dir.z);
     n.group.position.addScaledVector(dir, n.speed * dt);
-    n.group.position.y = surfaceY(n.group.position.x, n.group.position.z);
+    n.group.position.y = .45;
     n.group.rotation.y = THREE.MathUtils.lerp(n.group.rotation.y, n.heading, 1 - Math.pow(.001, dt));
     n.speed = n.baseSpeed * (.8 + Math.sin(performance.now() * .001 + n.baseSpeed) * .18);
     if (n.group.position.distanceTo(car.position) < 7.5) { const away = car.position.clone().sub(n.group.position).normalize(); car.position.addScaledVector(away, 4.2); addDamage(7 + Math.abs(car.speed) * .18, away); car.speed *= -.42; }
@@ -452,14 +431,14 @@ function updatePedestrians(dt) {
   const now = performance.now() * .001;
   for (const p of pedestrians) {
     const toCar = p.group.position.clone().sub(car.position), dc = toCar.length();
-    if (p.fallen > 0) { p.fallen -= dt; p.group.position.addScaledVector(p.hitVelocity, dt); p.hitVelocity.multiplyScalar(Math.pow(.08, dt)); p.group.position.y = terrainHeight(p.group.position.x, p.group.position.z) + .18; p.group.rotation.x = THREE.MathUtils.lerp(p.group.rotation.x, Math.PI / 2, 1 - Math.pow(.0003, dt)); walk(p.group, p.phase, 0, true); continue; }
+    if (p.fallen > 0) { p.fallen -= dt; p.group.position.addScaledVector(p.hitVelocity, dt); p.hitVelocity.multiplyScalar(Math.pow(.08, dt)); p.group.position.y = .18; p.group.rotation.x = THREE.MathUtils.lerp(p.group.rotation.x, Math.PI / 2, 1 - Math.pow(.0003, dt)); walk(p.group, p.phase, 0, true); continue; }
     if (p.injured > 0) p.injured = Math.max(0, p.injured - dt * .12);
     if (inCar && dc < 46 && Math.abs(car.speed) > 18 && p.injured <= 0) { p.panic = Math.max(p.panic, 1.6); const flee = toCar.lengthSq() > .01 ? toCar.normalize() : new THREE.Vector3(Math.sin(p.seed), 0, Math.cos(p.seed)); p.target.copy(p.group.position).addScaledVector(flee, 48); }
     if (inCar && dc < 5.2 && Math.abs(car.speed) > 10 && p.injured <= .2) { const push = p.group.position.clone().sub(car.position).normalize(); p.injured = 1; p.fallen = 2.8 + THREE.MathUtils.clamp(Math.abs(car.speed) / 24, 0, 2.2); p.hitVelocity.copy(push).multiplyScalar(10 + Math.abs(car.speed) * .36); car.speed *= .5; addDamage(4 + Math.abs(car.speed) * .18, push); continue; }
     p.panic = Math.max(0, p.panic - dt);
     const to = p.target.clone().sub(p.group.position);
     if (to.length() < 4) { const a = rand(p.seed + Math.floor(now * .21) + Math.floor(p.base.x)) * Math.PI * 2, rr = 14 + rand(p.seed + Math.floor(now * .17) + 9) * 72; p.target.set(THREE.MathUtils.clamp(p.base.x + Math.sin(a) * rr, -870, 870), 0, THREE.MathUtils.clamp(p.base.z + Math.cos(a) * rr, -870, 870)); }
-    else { const dir = to.normalize(), sp = p.speed * (p.panic > 0 ? 2.6 : 1) * (p.injured > 0 ? .42 : 1), old = p.group.position.clone(); p.group.position.addScaledVector(dir, sp * dt); if (hitBuilding(p.group.position)) p.group.position.copy(old); p.group.rotation.y = Math.atan2(dir.x, dir.z); p.phase += dt * sp * 2.2; p.group.position.y = terrainHeight(p.group.position.x, p.group.position.z) + Math.abs(Math.sin(p.phase)) * .08; walk(p.group, p.phase, p.panic > 0 ? 1.35 : .85); }
+    else { const dir = to.normalize(), sp = p.speed * (p.panic > 0 ? 2.6 : 1) * (p.injured > 0 ? .42 : 1), old = p.group.position.clone(); p.group.position.addScaledVector(dir, sp * dt); if (hitBuilding(p.group.position)) p.group.position.copy(old); p.group.rotation.y = Math.atan2(dir.x, dir.z); p.phase += dt * sp * 2.2; p.group.position.y = Math.abs(Math.sin(p.phase)) * .08; walk(p.group, p.phase, p.panic > 0 ? 1.35 : .85); }
   }
 }
 function updateCheckpoints(dt) {
@@ -471,8 +450,8 @@ function updateEffects(dt) {
   contactShadow.visible = inCar;
   smoke.visible = inCar && car.damage > 22;
   if (!inCar) return;
-  contactShadow.position.set(car.position.x, terrainHeight(car.position.x, car.position.z) + .08, car.position.z);
-  contactShadow.material.opacity = car.airborne > 0 ? .18 : .42;
+  contactShadow.position.set(car.position.x, .08, car.position.z);
+  contactShadow.material.opacity = .42;
   const amount = THREE.MathUtils.clamp((car.damage - 18) / 82, 0, 1), fw = new THREE.Vector3(Math.sin(car.heading), 0, Math.cos(car.heading));
   smoke.position.copy(car.position).addScaledVector(fw, 2.8);
   smoke.position.y += 1.2;
