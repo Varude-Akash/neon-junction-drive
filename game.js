@@ -6,8 +6,29 @@ const routeEl = document.getElementById("route");
 const styleEl = document.getElementById("style");
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8ec9ff);
-scene.fog = new THREE.FogExp2(0xb8dfff, 0.0012);
+
+function makeSkyTexture() {
+  const sky = document.createElement("canvas");
+  sky.width = 32;
+  sky.height = 256;
+  const ctx = sky.getContext("2d");
+  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+  gradient.addColorStop(0, "#07111d");
+  gradient.addColorStop(0.5, "#314d66");
+  gradient.addColorStop(1, "#c9e0ec");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 32, 256);
+  for (let i = 0; i < 42; i += 1) {
+    ctx.fillStyle = i % 3 ? "#d8ff3e66" : "#8be8ff88";
+    ctx.fillRect(rand(i) * 32, rand(i + 5) * 98, 1, 1);
+  }
+  const texture = new THREE.CanvasTexture(sky);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+scene.background = makeSkyTexture();
+scene.fog = new THREE.Fog(0x7f9fb5, 45, 820);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.15));
@@ -45,12 +66,17 @@ const car = {
   boost: 100,
   airborne: 0,
   yVelocity: 0,
+  steer: 0,
+  turnVelocity: 0,
+  visualTilt: 0,
 };
 
 let inCar = true;
 let activeVehicle = null;
 let person = null;
 let interactCooldown = 0;
+let contactShadow = null;
+let underGlow = null;
 
 const checkpoints = [
   [-360, -520], [-160, -320], [40, -120], [240, -320], [470, -120],
@@ -59,16 +85,17 @@ const checkpoints = [
 ].map(([x, z]) => new THREE.Vector3(x, 0, z));
 
 const mat = {
-  ground: new THREE.MeshStandardMaterial({ color: 0x2c6f3f, roughness: 1 }),
-  sand: new THREE.MeshStandardMaterial({ color: 0xb19766, roughness: 1 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x2b93b2, roughness: 0.28, metalness: 0.08 }),
-  asphalt: new THREE.MeshStandardMaterial({ color: 0x24282b, roughness: 0.86 }),
-  curb: new THREE.MeshStandardMaterial({ color: 0x95895f, roughness: 0.86 }),
-  lane: new THREE.MeshBasicMaterial({ color: 0xe4cb71 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0x163642, roughness: 0.28, metalness: 0.25 }),
+  ground: new THREE.MeshStandardMaterial({ color: 0x183d2c, roughness: 1 }),
+  sand: new THREE.MeshStandardMaterial({ color: 0x4a4f49, roughness: 1 }),
+  water: new THREE.MeshStandardMaterial({ color: 0x164c63, roughness: 0.24, metalness: 0.12, emissive: 0x082938, emissiveIntensity: 0.5 }),
+  asphalt: new THREE.MeshStandardMaterial({ color: 0x20252c, roughness: 0.88 }),
+  curb: new THREE.MeshStandardMaterial({ color: 0x17272b, roughness: 0.42, emissive: 0x0d5a69, emissiveIntensity: 0.42 }),
+  lane: new THREE.MeshStandardMaterial({ color: 0xf8f2c6, roughness: 0.55, emissive: 0xd8ff3e, emissiveIntensity: 0.7 }),
+  rail: new THREE.MeshStandardMaterial({ color: 0x132126, roughness: 0.35, emissive: 0x24d6ff, emissiveIntensity: 1.35 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x142535, roughness: 0.18, metalness: 0.3, emissive: 0x061522, emissiveIntensity: 0.35 }),
   tire: new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.92 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xd64235, roughness: 0.48, metalness: 0.18 }),
-  trim: new THREE.MeshStandardMaterial({ color: 0xf3ce61, roughness: 0.35, metalness: 0.12 }),
+  red: new THREE.MeshStandardMaterial({ color: 0xe8edf2, roughness: 0.3, metalness: 0.45 }),
+  trim: new THREE.MeshStandardMaterial({ color: 0xd8ff3e, roughness: 0.35, metalness: 0.12, emissive: 0xd8ff3e, emissiveIntensity: 0.95 }),
   glowGold: new THREE.MeshBasicMaterial({ color: 0xffcf5a }),
   glowPink: new THREE.MeshBasicMaterial({ color: 0xff4d74 }),
   glowCyan: new THREE.MeshBasicMaterial({ color: 0x46e2d0 }),
@@ -156,6 +183,14 @@ function addRoad(horizontal, offset) {
       : box(1.5, 0.04, 25, mat.lane, offset, 0.13, i);
     scene.add(stripe);
   }
+
+  const edgeA = horizontal
+    ? box(length, 0.12, 0.7, mat.rail, 0, 0.2, offset - ROAD_W / 2 - 1.3, false)
+    : box(0.7, 0.12, length, mat.rail, offset - ROAD_W / 2 - 1.3, 0.2, 0, false);
+  const edgeB = horizontal
+    ? box(length, 0.12, 0.7, mat.rail, 0, 0.2, offset + ROAD_W / 2 + 1.3, false)
+    : box(0.7, 0.12, length, mat.rail, offset + ROAD_W / 2 + 1.3, 0.2, 0, false);
+  scene.add(edgeA, edgeB);
 }
 
 function addBuilding(x, z, w, d, h, seed) {
@@ -453,6 +488,17 @@ function addCheckpoints() {
   }
 }
 
+function addVehicleEffects() {
+  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x02060d, transparent: true, opacity: 0.42, depthWrite: false });
+  contactShadow = new THREE.Mesh(new THREE.CircleGeometry(4.4, 32), shadowMat);
+  contactShadow.rotation.x = -Math.PI / 2;
+  contactShadow.renderOrder = 1;
+  scene.add(contactShadow);
+
+  underGlow = new THREE.PointLight(0x24d6ff, 1.8, 28, 2);
+  scene.add(underGlow);
+}
+
 const playerCar = makePlayerCar();
 activeVehicle = playerCar;
 person = makePerson();
@@ -462,6 +508,7 @@ addTraffic();
 addParkedCars();
 addPedestrians();
 addCheckpoints();
+addVehicleEffects();
 
 function inRect(pos, r, pad = 0) {
   return pos.x > r.x - pad && pos.x < r.x + r.w + pad && pos.z > r.z - pad && pos.z < r.z + r.d + pad;
@@ -489,6 +536,9 @@ function reset() {
   car.boost = 100;
   car.airborne = 0;
   car.yVelocity = 0;
+  car.steer = 0;
+  car.turnVelocity = 0;
+  car.visualTilt = 0;
   inCar = true;
   activeVehicle = playerCar;
   playerCar.visible = true;
@@ -496,6 +546,7 @@ function reset() {
   person.position.copy(car.position);
   person.rotation.y = car.heading;
   interactCooldown = 0;
+  document.body.classList.remove("boosting");
 }
 
 function addSkid(pos, heading) {
@@ -533,6 +584,9 @@ function toggleEnterExit() {
   if (inCar) {
     inCar = false;
     car.speed = 0;
+    car.visualTilt = 0;
+    activeVehicle.rotation.z = 0;
+    document.body.classList.remove("boosting");
     person.visible = true;
     person.position.copy(car.position).add(new THREE.Vector3(Math.cos(car.heading) * 6, 0, -Math.sin(car.heading) * 6));
     person.rotation.y = car.heading;
@@ -547,6 +601,8 @@ function toggleEnterExit() {
   car.position.y = 0.45;
   car.heading = target.group.rotation.y;
   car.speed = 0;
+  car.visualTilt = 0;
+  target.group.rotation.z = 0;
   person.visible = false;
 }
 
@@ -567,6 +623,7 @@ function updatePlayer(dt) {
   interactCooldown = Math.max(0, interactCooldown - dt);
   if (keys.has("e")) toggleEnterExit();
   if (!inCar) {
+    document.body.classList.remove("boosting");
     updatePerson(dt);
     return;
   }
@@ -577,24 +634,30 @@ function updatePlayer(dt) {
   const right = keys.has("d") || keys.has("arrowright");
   const handbrake = keys.has(" ");
   const boosting = (keys.has("shift") || keys.has("shiftleft") || keys.has("shiftright")) && car.boost > 0 && car.speed > 12;
-  const steer = (left ? 1 : 0) - (right ? 1 : 0);
+  const steerTarget = (left ? 1 : 0) - (right ? 1 : 0);
   const roadGrip = isOnRoad(car.position) ? 1 : 0.46;
+  const steerEase = 1 - Math.pow(0.0009, dt);
 
-  if (accel) car.speed += (boosting ? 74 : 46) * dt;
-  if (brake) car.speed -= 58 * dt;
-  car.speed *= Math.pow(handbrake ? 0.974 : 0.989, dt * 60);
+  car.steer = THREE.MathUtils.lerp(car.steer, steerTarget, steerEase);
+  if (Math.abs(steerTarget) < 0.01) car.steer *= Math.pow(0.08, dt);
+
+  if (accel) car.speed += (boosting ? 82 : 50) * dt;
+  if (brake) car.speed -= car.speed > 8 ? 74 * dt : 46 * dt;
+  car.speed *= Math.pow(handbrake ? 0.965 : 0.992, dt * 60);
   car.speed *= Math.pow(roadGrip, dt * 5);
-  car.speed = THREE.MathUtils.clamp(car.speed, -24, boosting ? 92 : 68);
+  car.speed = THREE.MathUtils.clamp(car.speed, -22, boosting ? 96 : 72);
   car.boost = THREE.MathUtils.clamp(car.boost + (boosting ? -38 : 10) * dt, 0, 100);
 
-  const steerPower = THREE.MathUtils.clamp(Math.abs(car.speed) / 34, 0.08, 1.28);
-  car.heading += steer * steerPower * (handbrake ? 2.75 : 1.6) * dt * (car.speed < 0 ? -1 : 1);
+  const steerPower = THREE.MathUtils.clamp(Math.abs(car.speed) / 38, 0.05, 1.22);
+  const targetTurn = car.steer * steerPower * (handbrake ? 2.45 : 1.45) * (car.speed < 0 ? -1 : 1);
+  car.turnVelocity = THREE.MathUtils.lerp(car.turnVelocity, targetTurn, 1 - Math.pow(0.0016, dt));
+  car.heading += car.turnVelocity * dt;
 
   const old = car.position.clone();
   const forward = new THREE.Vector3(Math.sin(car.heading), 0, Math.cos(car.heading));
   const side = new THREE.Vector3(Math.cos(car.heading), 0, -Math.sin(car.heading));
   car.position.addScaledVector(forward, car.speed * dt);
-  if (handbrake) car.position.addScaledVector(side, steer * Math.abs(car.speed) * 0.2 * dt);
+  if (handbrake) car.position.addScaledVector(side, car.steer * Math.abs(car.speed) * 0.23 * dt);
 
   for (const ramp of jumpPads) {
     if (Math.hypot(car.position.x - ramp.x, car.position.z - ramp.z) < ramp.radius && Math.abs(car.speed) > 35 && car.airborne <= 0) {
@@ -625,7 +688,7 @@ function updatePlayer(dt) {
     }
   }
 
-  const drifting = (handbrake || Math.abs(steer) > 0.6) && Math.abs(car.speed) > 28;
+  const drifting = (handbrake || Math.abs(car.steer) > 0.62) && Math.abs(car.speed) > 28;
   if (drifting) {
     car.style += Math.round(Math.abs(car.speed) * dt * 9);
     car.bestStyle = Math.max(car.bestStyle, car.style);
@@ -636,6 +699,9 @@ function updatePlayer(dt) {
 
   activeVehicle.position.copy(car.position);
   activeVehicle.rotation.y = car.heading;
+  car.visualTilt = THREE.MathUtils.lerp(car.visualTilt, -car.steer * THREE.MathUtils.clamp(Math.abs(car.speed) / 80, 0, 1) * 0.12, 1 - Math.pow(0.002, dt));
+  activeVehicle.rotation.z = car.visualTilt;
+  document.body.classList.toggle("boosting", boosting);
 }
 
 function updateTraffic(dt) {
@@ -727,6 +793,21 @@ function updateVisibility(dt) {
   }
 }
 
+function updateVehicleEffects(dt) {
+  if (!contactShadow || !underGlow) return;
+  contactShadow.visible = inCar;
+  underGlow.visible = inCar;
+  if (!inCar) return;
+
+  contactShadow.position.set(car.position.x, 0.08, car.position.z);
+  const shadowScale = 1 + THREE.MathUtils.clamp(Math.abs(car.speed) / 95, 0, 1) * 0.18;
+  contactShadow.scale.lerp(new THREE.Vector3(1.25 * shadowScale, 0.62 * shadowScale, 1), 1 - Math.pow(0.002, dt));
+  contactShadow.material.opacity = car.airborne > 0 ? 0.18 : 0.42;
+
+  underGlow.position.set(car.position.x, 0.55, car.position.z);
+  underGlow.intensity = 1.4 + THREE.MathUtils.clamp(Math.abs(car.speed) / 90, 0, 1) * 1.2 + (car.boost < 94 ? 0.6 : 0);
+}
+
 function updateCamera(dt) {
   if (!inCar) {
     const follow = new THREE.Vector3(
@@ -745,18 +826,21 @@ function updateCamera(dt) {
   }
 
   const speedLean = THREE.MathUtils.clamp(Math.abs(car.speed) / 70, 0, 1);
-  const followDistance = 24 + speedLean * 13;
-  const followHeight = 11 + speedLean * 3;
+  const followDistance = 18 + speedLean * 11;
+  const followHeight = 7.2 + speedLean * 2.3;
+  const sideLean = -car.steer * 3.2 * speedLean;
   const follow = new THREE.Vector3(
-    car.position.x - Math.sin(car.heading) * followDistance,
+    car.position.x - Math.sin(car.heading) * followDistance + Math.cos(car.heading) * sideLean,
     followHeight + car.position.y,
-    car.position.z - Math.cos(car.heading) * followDistance
+    car.position.z - Math.cos(car.heading) * followDistance - Math.sin(car.heading) * sideLean
   );
   const lookAt = new THREE.Vector3(
-    car.position.x + Math.sin(car.heading) * (18 + speedLean * 18),
-    2.8 + car.position.y,
-    car.position.z + Math.cos(car.heading) * (18 + speedLean * 18)
+    car.position.x + Math.sin(car.heading) * (18 + speedLean * 22),
+    2.4 + car.position.y + speedLean * 0.6,
+    car.position.z + Math.cos(car.heading) * (18 + speedLean * 22)
   );
+  camera.fov = THREE.MathUtils.lerp(camera.fov, car.boost < 92 && Math.abs(car.speed) > 18 ? 70 : 64, 1 - Math.pow(0.004, dt));
+  camera.updateProjectionMatrix();
   camera.position.lerp(follow, 1 - Math.pow(0.0007, dt));
   camera.lookAt(lookAt);
 }
@@ -794,6 +878,7 @@ function animate() {
   updateCheckpoints(dt);
   updateBillboards(dt);
   updateVisibility(dt);
+  updateVehicleEffects(dt);
   updateCamera(dt);
   updateHud();
   renderer.render(scene, camera);
