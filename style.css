@@ -2,10 +2,11 @@
   color-scheme: dark;
   --ink: #f4f9ff;
   --muted: #8293a7;
-  --panel: rgba(6, 16, 26, 0.78);
-  --line: rgba(194, 233, 255, 0.24);
+  --panel: rgba(8, 22, 32, 0.72);
+  --line: rgba(207, 239, 255, 0.32);
   --acid: #d8ff3e;
   --cyan: #24d6ff;
+  --warn: #ff7b4a;
 }
 
 * {
@@ -22,7 +23,7 @@ body,
 }
 
 body {
-  background: #07111d;
+  background: #8fd0ff;
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -48,7 +49,7 @@ canvas {
   display: block;
   width: 100vw;
   height: 100vh;
-  background: #07111d;
+  background: #8fd0ff;
 }
 
 .hud {
@@ -99,10 +100,14 @@ canvas {
   white-space: nowrap;
 }
 
-.hud div:nth-child(1) strong,
-.hud div:nth-child(3) strong {
+.hud div:nth-child(1) strong {
   color: var(--acid);
   text-shadow: 0 0 18px rgba(216, 255, 62, 0.38);
+}
+
+.hud div:nth-child(3) strong {
+  color: var(--warn);
+  text-shadow: 0 0 18px rgba(255, 123, 74, 0.32);
 }
 
 .hint {
