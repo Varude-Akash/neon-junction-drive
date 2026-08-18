@@ -73,6 +73,9 @@ const mat = {
   glowPink: new THREE.MeshBasicMaterial({ color: 0xff4d74 }),
   glowCyan: new THREE.MeshBasicMaterial({ color: 0x46e2d0 }),
   black: new THREE.MeshStandardMaterial({ color: 0x050606, roughness: 0.9 }),
+  chrome: new THREE.MeshStandardMaterial({ color: 0xc8c8bc, roughness: 0.32, metalness: 0.5 }),
+  headlight: new THREE.MeshBasicMaterial({ color: 0xfff2b0 }),
+  brake: new THREE.MeshBasicMaterial({ color: 0xb51622 }),
 };
 
 function rand(seed) {
@@ -166,13 +169,19 @@ function addBuilding(x, z, w, d, h, seed) {
 }
 
 function addPalm(x, z, scale = 1) {
-  const trunk = cyl(1.6 * scale, 2.2 * scale, 16 * scale, new THREE.MeshStandardMaterial({ color: 0x765d3d, roughness: 0.9 }), x, 8 * scale, z, 8);
+  const trunkHeight = 8.5 * scale;
+  const trunk = cyl(0.55 * scale, 0.9 * scale, trunkHeight, new THREE.MeshStandardMaterial({ color: 0x765d3d, roughness: 0.9 }), x, trunkHeight / 2, z, 8);
+  trunk.rotation.z = (rand(x + z) - 0.5) * 0.12;
   const crown = new THREE.Group();
-  crown.position.set(x, 16 * scale, z);
-  for (let i = 0; i < 7; i += 1) {
-    const leaf = box(3 * scale, 0.55 * scale, 18 * scale, new THREE.MeshStandardMaterial({ color: 0x2f7444, roughness: 0.75 }), 0, 0, 8 * scale, false);
-    leaf.rotation.y = i * Math.PI * 2 / 7;
-    leaf.rotation.x = 0.28;
+  crown.position.set(x, trunkHeight + 0.8 * scale, z);
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d7b42, roughness: 0.76 });
+  for (let i = 0; i < 8; i += 1) {
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.2 * scale, 8.2 * scale, 4), leafMat);
+    leaf.position.set(0, -0.25 * scale, 3.3 * scale);
+    leaf.rotation.x = Math.PI / 2.7;
+    leaf.rotation.y = i * Math.PI * 2 / 8;
+    leaf.rotation.z = (i % 2 ? 0.12 : -0.12);
+    leaf.castShadow = true;
     crown.add(leaf);
   }
   scene.add(trunk, crown);
@@ -213,7 +222,7 @@ function buildWorld() {
       const d = z2 - z1;
       if (w < 42 || d < 42) continue;
       if (rand(seed) < 0.16) {
-        addPalm((x1 + x2) / 2, (z1 + z2) / 2, 1.4);
+        addPalm((x1 + x2) / 2, (z1 + z2) / 2, 0.85);
       } else if (rand(seed + 4) > 0.48 && w > 95) {
         addBuilding(x1 + w * 0.28, z1 + d * 0.5, w * 0.42, d * 0.74, 28 + rand(seed + 6) * 80, seed);
         addBuilding(x2 - w * 0.24, z1 + d * 0.5, w * 0.36, d * 0.58, 22 + rand(seed + 7) * 64, seed + 12);
@@ -224,7 +233,7 @@ function buildWorld() {
     }
   }
 
-  for (let i = 0; i < 65; i += 1) addPalm(-835 + rand(i) * 110, -840 + rand(i + 6) * 1680, 0.85 + rand(i + 8) * 0.45);
+  for (let i = 0; i < 65; i += 1) addPalm(-835 + rand(i) * 110, -840 + rand(i + 6) * 1680, 0.62 + rand(i + 8) * 0.28);
 
   addRamp(-160, -120, Math.PI / 2);
   addRamp(240, 310, 0);
@@ -234,12 +243,19 @@ function buildWorld() {
   driftZones.push({ x: 470, z: -320, r: 70 }, { x: -360, z: 540, r: 80 }, { x: 720, z: 310, r: 74 });
 }
 
-function makePlayerCar() {
+function makeCarModel(bodyMaterial, accentMaterial = mat.trim) {
   const group = new THREE.Group();
-  group.add(box(5.2, 1.4, 8.7, mat.red, 0, 1.1, 0));
-  group.add(box(3.5, 1.25, 3.9, mat.glass, 0, 2.25, -0.7));
-  group.add(box(0.62, 0.08, 8.2, mat.trim, 0, 1.86, 0.1, false));
-  group.add(box(5.6, 0.32, 1, mat.black, 0, 0.62, -4.2));
+  group.add(box(5.3, 0.95, 8.9, bodyMaterial, 0, 1.02, 0));
+  group.add(box(4.7, 0.7, 3.2, bodyMaterial, 0, 1.72, 1.7));
+  group.add(box(4.35, 0.95, 3.4, mat.glass, 0, 2.18, -0.85));
+  group.add(box(3.4, 0.55, 2.2, mat.glass, 0, 2.05, 1.95));
+  group.add(box(0.48, 0.08, 7.8, accentMaterial, 0, 1.88, -0.15, false));
+  group.add(box(5.8, 0.42, 0.9, mat.black, 0, 0.56, -4.35));
+  group.add(box(5.6, 0.34, 0.72, mat.chrome, 0, 0.7, 4.35));
+  group.add(box(1.1, 0.26, 0.18, mat.headlight, -1.55, 1.15, 4.53, false));
+  group.add(box(1.1, 0.26, 0.18, mat.headlight, 1.55, 1.15, 4.53, false));
+  group.add(box(1.05, 0.25, 0.18, mat.brake, -1.7, 1.1, -4.52, false));
+  group.add(box(1.05, 0.25, 0.18, mat.brake, 1.7, 1.1, -4.52, false));
   for (const x of [-2.8, 2.8]) {
     for (const z of [-3.15, 3.15]) {
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.62, 18), mat.tire);
@@ -247,8 +263,17 @@ function makePlayerCar() {
       wheel.position.set(x, 0.62, z);
       wheel.castShadow = true;
       group.add(wheel);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.66, 14), mat.chrome);
+      hub.rotation.z = Math.PI / 2;
+      hub.position.set(x, 0.62, z);
+      group.add(hub);
     }
   }
+  return group;
+}
+
+function makePlayerCar() {
+  const group = makeCarModel(mat.red, mat.trim);
   scene.add(group);
   return group;
 }
@@ -258,12 +283,15 @@ function makePerson() {
   const shirt = new THREE.MeshStandardMaterial({ color: 0x2c5fd7, roughness: 0.7 });
   const pants = new THREE.MeshStandardMaterial({ color: 0x1b1b22, roughness: 0.8 });
   const skin = new THREE.MeshStandardMaterial({ color: 0xb77955, roughness: 0.72 });
-  const body = box(1.2, 2.4, 0.75, shirt, 0, 2.15, 0, true);
-  const legs = box(0.95, 1.55, 0.62, pants, 0, 0.9, 0, true);
+  const body = box(1.15, 1.65, 0.62, shirt, 0, 2.0, 0, true);
+  const leftArm = box(0.28, 1.35, 0.26, skin, -0.82, 1.92, 0.02, true);
+  const rightArm = box(0.28, 1.35, 0.26, skin, 0.82, 1.92, 0.02, true);
+  const leftLeg = box(0.36, 1.35, 0.32, pants, -0.28, 0.72, 0, true);
+  const rightLeg = box(0.36, 1.35, 0.32, pants, 0.28, 0.72, 0, true);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12), skin);
-  head.position.set(0, 3.68, 0);
+  head.position.set(0, 3.18, 0);
   head.castShadow = true;
-  group.add(body, legs, head);
+  group.add(body, leftArm, rightArm, leftLeg, rightLeg, head);
   group.visible = false;
   scene.add(group);
   return group;
@@ -271,9 +299,8 @@ function makePerson() {
 
 function makeTrafficCar(color, x, z, heading, speed) {
   const carMat = new THREE.MeshStandardMaterial({ color, roughness: 0.56, metalness: 0.15 });
-  const group = new THREE.Group();
-  group.add(box(4.8, 1.25, 8.2, carMat, 0, 0.95, 0));
-  group.add(box(3.2, 0.95, 3.1, mat.glass, 0, 1.85, -0.55));
+  const group = makeCarModel(carMat, mat.chrome);
+  group.scale.setScalar(0.92);
   group.position.set(x, 0, z);
   group.rotation.y = heading;
   scene.add(group);
@@ -283,10 +310,8 @@ function makeTrafficCar(color, x, z, heading, speed) {
 
 function makeParkedCar(color, x, z, heading) {
   const carMat = new THREE.MeshStandardMaterial({ color, roughness: 0.52, metalness: 0.2 });
-  const group = new THREE.Group();
-  group.add(box(5.1, 1.25, 8.4, carMat, 0, 0.95, 0));
-  group.add(box(3.4, 1.0, 3.2, mat.glass, 0, 1.86, -0.55));
-  group.add(box(5.5, 0.35, 0.95, mat.black, 0, 0.6, -4.15));
+  const group = makeCarModel(carMat, mat.chrome);
+  group.scale.setScalar(0.96);
   group.position.set(x, 0, z);
   group.rotation.y = heading;
   scene.add(group);
@@ -323,8 +348,13 @@ function addParkedCars() {
 function makePedestrian(x, z, seed) {
   const group = new THREE.Group();
   const shirt = new THREE.MeshStandardMaterial({ color: [0xd64b38, 0x315bd8, 0x2f9c58, 0xe0c15c, 0x9b4aa0][seed % 5], roughness: 0.75 });
+  const pants = new THREE.MeshStandardMaterial({ color: [0x1a1d24, 0x293850, 0x3b332a][seed % 3], roughness: 0.82 });
   const skin = new THREE.MeshStandardMaterial({ color: [0x8d5a3f, 0xbf8361, 0x6e4939][seed % 3], roughness: 0.8 });
-  group.add(box(1.1, 2.0, 0.7, shirt, 0, 1.8, 0, true));
+  group.add(box(1.05, 1.55, 0.62, shirt, 0, 1.9, 0, true));
+  group.add(box(0.28, 1.22, 0.24, skin, -0.76, 1.8, 0, true));
+  group.add(box(0.28, 1.22, 0.24, skin, 0.76, 1.8, 0, true));
+  group.add(box(0.34, 1.25, 0.3, pants, -0.25, 0.7, 0, true));
+  group.add(box(0.34, 1.25, 0.3, pants, 0.25, 0.7, 0, true));
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.52, 12, 10), skin);
   head.position.set(0, 3.05, 0);
   head.castShadow = true;
@@ -577,6 +607,7 @@ function updatePedestrians(dt) {
       ped.group.position.z = ped.base.z + wave;
       ped.group.rotation.y = wave > 0 ? 0 : Math.PI;
     }
+    ped.group.position.y = Math.abs(Math.sin(performance.now() * 0.004 * ped.speed + ped.seed)) * 0.18;
 
     const d = ped.group.position.distanceTo(car.position);
     if (inCar && d < 6 && Math.abs(car.speed) > 12) {
