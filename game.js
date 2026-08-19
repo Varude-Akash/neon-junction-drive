@@ -26,16 +26,14 @@ function rand(seed) {
   const x = Math.sin(seed * 127.31) * 43758.5453;
   return x - Math.floor(x);
 }
-function terrainHeight() { return 0; }
-function surfaceY() { return 0.45; }
 function segmentDistance(px, pz, ax, az, bx, bz) {
   const abx = bx - ax, abz = bz - az, apx = px - ax, apz = pz - az;
   const t = THREE.MathUtils.clamp((apx * abx + apz * abz) / (abx * abx + abz * abz || 1), 0, 1);
   const cx = ax + abx * t, cz = az + abz * t;
   return Math.hypot(px - cx, pz - cz);
 }
-function isOnRoad(pos) {
-  return roadSegments.some((s) => segmentDistance(pos.x, pos.z, s.ax, s.az, s.bx, s.bz) < s.width * 0.5);
+function isOnRoad(pos, pad = 0) {
+  return roadSegments.some((s) => segmentDistance(pos.x, pos.z, s.ax, s.az, s.bx, s.bz) < s.width * 0.5 + pad);
 }
 function nearestRoadSample(pos) {
   let best = null, bestDist = Infinity;
@@ -53,7 +51,7 @@ function makeSkyTexture() {
   const ctx = c.getContext("2d");
   const g = ctx.createLinearGradient(0, 0, 0, 256);
   g.addColorStop(0, "#62b9ff");
-  g.addColorStop(0.5, "#c8efff");
+  g.addColorStop(0.52, "#c8efff");
   g.addColorStop(1, "#ffffff");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 96, 256);
@@ -177,7 +175,7 @@ function drawRoad(route) {
     }
     if (i % 2 === 0) samples.push({ position: c.clone(), heading, width: route.w });
   }
-  roadRoutes.push({ samples, width: route.w });
+  roadRoutes.push({ samples, width: route.w, closed: route.closed });
 }
 function addGround() {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD, 1, 1), mat.grass);
@@ -206,7 +204,8 @@ function addBuildings() {
     }
   });
 }
-function addHill(x, z, sx, sy, sz, color, seed) {
+function addBackgroundHill(x, z, sx, sy, sz, color, seed) {
+  if (isOnRoad(new THREE.Vector3(x, 0, z), 90)) return;
   const hill = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color, roughness: .98 }));
   hill.position.set(x, sy * .42 - .35, z);
   hill.scale.set(sx, sy, sz);
@@ -243,17 +242,23 @@ function addNature() {
   const samples = roadRoutes.flatMap((r) => r.samples);
   for (let i = 0; i < samples.length; i += 3) {
     const s = samples[i], side = i % 2 ? -1 : 1, n = new THREE.Vector3(Math.cos(s.heading), 0, -Math.sin(s.heading));
-    const x = s.position.x + n.x * side * (s.width * .82 + 20 + rand(i) * 36), z = s.position.z + n.z * side * (s.width * .82 + 20 + rand(i + 1) * 36);
-    if (Math.abs(x) < 1100 && Math.abs(z) < 1100 && !isOnRoad(new THREE.Vector3(x, 0, z))) (i % 3 === 0 ? addTree : addBush)(x, z, .8 + rand(i + 5) * .7, i, i % 2);
+    const x = s.position.x + n.x * side * (s.width * .82 + 30 + rand(i) * 40), z = s.position.z + n.z * side * (s.width * .82 + 30 + rand(i + 1) * 40);
+    if (Math.abs(x) < 1100 && Math.abs(z) < 1100 && !isOnRoad(new THREE.Vector3(x, 0, z), 25)) (i % 3 === 0 ? addTree : addBush)(x, z, .8 + rand(i + 5) * .7, i, i % 2);
   }
   for (let i = 0; i < 390; i += 1) {
     const x = -1250 + rand(i) * 2500, z = -1250 + rand(i + 11) * 2500;
-    if (isOnRoad(new THREE.Vector3(x, 0, z))) continue;
+    if (isOnRoad(new THREE.Vector3(x, 0, z), 35)) continue;
     if (rand(i + 2) > .68) addTree(x, z, .65 + rand(i + 3) * .75, i, rand(i + 8) > .55 ? 1 : 0);
     else if (rand(i + 4) > .47) addBush(x, z, .8 + rand(i + 5) * 1.2, i);
     if (rand(i + 17) > .75) addRock(x + rand(i + 9) * 22, z + rand(i + 13) * 22, 1.2 + rand(i + 19) * 5, i);
   }
-  for (let i = 0; i < 28; i += 1) addHill(-1200 + rand(i) * 2500, -1200 + rand(i + 4) * 2500, 35 + rand(i + 8) * 90, 8 + rand(i + 10) * 28, 28 + rand(i + 12) * 90, rand(i + 6) > .5 ? 0x4c9851 : 0x6b8b52, i);
+  for (let i = 0; i < 20; i += 1) {
+    const angle = rand(i) * Math.PI * 2;
+    const radius = 1150 + rand(i + 3) * 420;
+    const x = Math.sin(angle) * radius;
+    const z = Math.cos(angle) * radius;
+    addBackgroundHill(x, z, 35 + rand(i + 8) * 80, 7 + rand(i + 10) * 18, 28 + rand(i + 12) * 80, rand(i + 6) > .5 ? 0x4c9851 : 0x6b8b52, i);
+  }
 }
 function buildWorld() {
   addGround();
@@ -300,7 +305,7 @@ function addActors() {
     const route = roadRoutes[i % roadRoutes.length], si = Math.floor(rand(i + 4) * route.samples.length), s = route.samples[si], off = i % 2 ? -6 : 6, n = new THREE.Vector3(Math.cos(s.heading), 0, -Math.sin(s.heading)), p = s.position.clone().addScaledVector(n, off), mesh = makeCar(new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: .55, metalness: .12 }));
     mesh.position.set(p.x, .45, p.z);
     mesh.rotation.y = s.heading;
-    traffic.push({ group: mesh, routeIndex: i % roadRoutes.length, sampleIndex: si, laneOffset: off, heading: s.heading, speed: 17 + rand(i + 3) * 16, baseSpeed: 17 + rand(i + 3) * 16 });
+    traffic.push({ group: mesh, routeIndex: i % roadRoutes.length, sampleIndex: si, laneOffset: off, dir: i % 2 ? -1 : 1, heading: s.heading, speed: 17 + rand(i + 3) * 16, baseSpeed: 17 + rand(i + 3) * 16 });
   }
   const samples = roadRoutes.flatMap((r) => r.samples);
   for (let i = 8, c = 0; i < samples.length && c < 22; i += 17, c += 1) {
@@ -415,16 +420,33 @@ function updatePlayer(dt) {
   document.body.classList.toggle("boosting", boosting);
 }
 function updateTraffic(dt) {
-  for (const n of traffic) {
-    const r = roadRoutes[n.routeIndex], ni = (n.sampleIndex + 1) % r.samples.length, s = r.samples[ni], norm = new THREE.Vector3(Math.cos(s.heading), 0, -Math.sin(s.heading)), target = s.position.clone().addScaledVector(norm, n.laneOffset), to = target.sub(n.group.position);
-    if (to.length() < 7) n.sampleIndex = ni;
-    const dir = to.normalize();
-    n.heading = Math.atan2(dir.x, dir.z);
-    n.group.position.addScaledVector(dir, n.speed * dt);
-    n.group.position.y = .45;
-    n.group.rotation.y = THREE.MathUtils.lerp(n.group.rotation.y, n.heading, 1 - Math.pow(.001, dt));
-    n.speed = n.baseSpeed * (.8 + Math.sin(performance.now() * .001 + n.baseSpeed) * .18);
-    if (n.group.position.distanceTo(car.position) < 7.5) { const away = car.position.clone().sub(n.group.position).normalize(); car.position.addScaledVector(away, 4.2); addDamage(7 + Math.abs(car.speed) * .18, away); car.speed *= -.42; }
+  for (const npc of traffic) {
+    const route = roadRoutes[npc.routeIndex];
+    if (!route || route.samples.length < 2) continue;
+    let nextIndex = npc.sampleIndex + npc.dir;
+    if (route.closed) {
+      nextIndex = (nextIndex + route.samples.length) % route.samples.length;
+    } else if (nextIndex <= 0 || nextIndex >= route.samples.length - 1) {
+      npc.dir *= -1;
+      nextIndex = THREE.MathUtils.clamp(npc.sampleIndex + npc.dir, 0, route.samples.length - 1);
+    }
+    const sample = route.samples[nextIndex];
+    const normal = new THREE.Vector3(Math.cos(sample.heading), 0, -Math.sin(sample.heading));
+    const target = sample.position.clone().addScaledVector(normal, npc.laneOffset);
+    const toTarget = target.sub(npc.group.position);
+    if (toTarget.length() < 7) npc.sampleIndex = nextIndex;
+    const dir = toTarget.normalize();
+    npc.heading = Math.atan2(dir.x, dir.z);
+    npc.group.position.addScaledVector(dir, npc.speed * dt);
+    npc.group.position.y = .45;
+    npc.group.rotation.y = THREE.MathUtils.lerp(npc.group.rotation.y, npc.heading, 1 - Math.pow(.001, dt));
+    npc.speed = npc.baseSpeed * (.8 + Math.sin(performance.now() * .001 + npc.baseSpeed) * .18);
+    if (npc.group.position.distanceTo(car.position) < 7.5) {
+      const away = car.position.clone().sub(npc.group.position).normalize();
+      car.position.addScaledVector(away, 4.2);
+      addDamage(7 + Math.abs(car.speed) * .18, away);
+      car.speed *= -.42;
+    }
   }
 }
 function updatePedestrians(dt) {
